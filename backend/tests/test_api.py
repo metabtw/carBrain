@@ -144,6 +144,68 @@ def test_upload_rejects_unknown_ecu(client):
     assert response.json()["error"] == "UNSUPPORTED_ECU"
 
 
+def test_tune_with_torque_and_hardware(client):
+    response = client.post(
+        "/api/tune",
+        json={
+            "turbo": 10,
+            "injection": 4,
+            "throttle": 8,
+            "torque": 6,
+            "timing_advance_deg": 6,
+            "hardware_upgrades": [
+                "upgraded_turbo",
+                "upgraded_injectors",
+                "dyno_verified",
+            ],
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["success"] is True
+    assert body["checksum_verification"]["overall_status"] == "VALID"
+    assert {report["map_key"] for report in body["change_reports"]} == {
+        "boost",
+        "smoke_limiter",
+        "driver_wish",
+        "torque_limiter",
+    }
+    assert body["applied_params"]["torque_offset"] == 6
+    assert body["applied_params"]["timing_advance_deg"] == 6
+
+
+def test_tune_rejects_torque_limiter_overflow(client):
+    response = client.post("/api/tune", json={"torque": 18})
+    assert response.status_code == 422
+    assert response.json()["safety"]["code"] in {
+        "TORQUE_LIMITER_LIMIT",
+        "MECHANICAL_LIMIT",
+    }
+
+
+def test_validate_reports_torque_decisions(client):
+    response = client.post("/api/validate", json={"torque": 12})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["allowed"] is True
+    assert "TORQUE_LIMITER_WARNING" in {d["code"] for d in body["decisions"]}
+
+
+def test_export_accepts_extended_parameters(client):
+    response = client.get(
+        "/api/download?turbo=10&injection=4&throttle=8&torque=6&timing=6&rail=1500"
+    )
+    assert response.status_code == 200
+    assert response.headers["x-checksum-status"] == "VALID"
+    assert len(response.content) == 512 * 1024
+
+
+def test_export_rejects_rail_pressure_overflow(client):
+    response = client.get("/api/download?rail=2300")
+    assert response.status_code == 422
+    assert response.json()["safety"]["code"] == "RAIL_PRESSURE_LIMIT"
+
+
 def test_versions_are_listed(client):
     response = client.get("/api/versions")
     assert response.status_code == 200

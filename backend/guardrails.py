@@ -92,6 +92,7 @@ class TuningRequest:
     turbo_pct: float = 0.0
     injection_pct: float = 0.0
     throttle_pct: float = 0.0
+    torque_pct: float = 0.0
     timing_advance_deg: Optional[float] = None
     rail_pressure_bar: Optional[float] = None
     ambient_temp_c: float = 25.0
@@ -160,6 +161,7 @@ class GuardrailResult:
                 "turbo_pct": self.request.turbo_pct,
                 "injection_pct": self.request.injection_pct,
                 "throttle_pct": self.request.throttle_pct,
+                "torque_pct": self.request.torque_pct,
                 "timing_advance_deg": self.request.timing_advance_deg,
                 "rail_pressure_bar": self.request.rail_pressure_bar,
                 "hardware_upgrades": sorted(self.request.normalized_upgrades()),
@@ -238,6 +240,7 @@ class GuardrailEngine:
         turbo = _finite(request.turbo_pct, "turbo_pct")
         injection = _finite(request.injection_pct, "injection_pct")
         throttle = _finite(request.throttle_pct, "throttle_pct")
+        torque = _finite(request.torque_pct, "torque_pct")
         ambient = _finite(request.ambient_temp_c, "ambient_temp_c")
         intake = (
             _finite(request.intake_air_temp_c, "intake_air_temp_c")
@@ -248,6 +251,7 @@ class GuardrailEngine:
             turbo_pct=turbo,
             injection_pct=injection,
             throttle_pct=throttle,
+            torque_pct=torque,
             timing_advance_deg=request.timing_advance_deg,
             rail_pressure_bar=request.rail_pressure_bar,
             ambient_temp_c=ambient,
@@ -264,6 +268,7 @@ class GuardrailEngine:
             ("turbo_pct", turbo),
             ("injection_pct", injection),
             ("throttle_pct", throttle),
+            ("torque_pct", torque),
         ):
             if abs(value) > abs_limit:
                 decisions.append(
@@ -369,6 +374,52 @@ class GuardrailEngine:
                         "devirde ani tork yükü oluşturur. Çift kütleli volan "
                         "(DMF) ve debriyaj ömrü kısalır; ıslak zeminde "
                         "patinaj/çekiş kaybı artar."
+                    ),
+                )
+            )
+
+        # --- Torque limiter map (0x4F080) ------------------------------------
+        # The limiter does not create torque by itself; it only raises the
+        # ceiling.  Raising it beyond the fuel/air the maps can deliver simply
+        # produces an unattainable target and lets the ECU command more IQ than
+        # the hardware can back up.  The map's own hard limit is ±15 %.
+        if torque > 15.0:
+            decisions.append(
+                GuardrailDecision(
+                    code="TORQUE_LIMITER_LIMIT",
+                    severity="critical",
+                    field="torque_pct",
+                    requested=torque,
+                    limit=15.0,
+                    message=(
+                        f"Tork limitörü +{torque:.1f}% haritanın izin verdiği "
+                        "±15% sınırının dışında. İstek reddedildi."
+                    ),
+                    engineering_note=(
+                        "Tork limitörü (Drehmomentbegrenzer) bir tavan değeridir; "
+                        "tek başına tork üretmez. Yakıt ve hava haritaları bu "
+                        "tavanı desteklemiyorsa ECU ulaşılamayan bir IQ hedefi "
+                        "ister, enjektör duty cycle'ı artar ve limitör koruma "
+                        "işlevini yitirir. DMF, debriyaj ve aks için risk oluşur."
+                    ),
+                )
+            )
+        elif torque > 10.0:
+            decisions.append(
+                GuardrailDecision(
+                    code="TORQUE_LIMITER_WARNING",
+                    severity="warning",
+                    field="torque_pct",
+                    requested=torque,
+                    limit=10.0,
+                    message=(
+                        f"Tork limitörü +{torque:.1f}% agresif; stok DMF ve "
+                        "şanzıman için önerilmez."
+                    ),
+                    engineering_note=(
+                        "Stok 240 Nm tavanı aşılırken çift kütleli volan yayları "
+                        "ve debriyaj balatası hızla yorulur. Limitörü artırmak "
+                        "yerine önce hava/yakıt dengesini iyileştirin."
                     ),
                 )
             )

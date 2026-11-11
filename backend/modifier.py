@@ -196,14 +196,16 @@ def apply_tuning(
     turbo_pct: float = 0.0,
     injection_pct: float = 0.0,
     throttle_pct: float = 0.0,
+    torque_pct: float = 0.0,
 ) -> Tuple[bytearray, List[MapChangeReport]]:
     """
-    Apply the three user-facing sliders in one deterministic pass.
+    Apply the user-facing sliders in one deterministic pass.
 
     Mapping (kept stable for the existing UI):
       turbo    -> boost / Ladedruck Soll
       injection-> smoke limiter (maximum fuel for the available air mass)
       throttle -> driver wish (pedal -> requested IQ)
+      torque   -> torque limiter (maximum allowed torque / IQ ceiling)
     """
     buffer = bytearray(data)
     reports: List[MapChangeReport] = []
@@ -211,6 +213,7 @@ def apply_tuning(
         ("boost", turbo_pct),
         ("smoke_limiter", injection_pct),
         ("driver_wish", throttle_pct),
+        ("torque_limiter", torque_pct),
     ):
         if abs(float(pct)) < 1e-9:
             continue
@@ -225,6 +228,7 @@ def preview_changes(
     turbo_pct: float = 0.0,
     injection_pct: float = 0.0,
     throttle_pct: float = 0.0,
+    torque_pct: float = 0.0,
 ) -> List[dict]:
     """Read-only preview used by the UI before applying a tune."""
     reports = []
@@ -232,6 +236,7 @@ def preview_changes(
         ("boost", turbo_pct),
         ("smoke_limiter", injection_pct),
         ("driver_wish", throttle_pct),
+        ("torque_limiter", torque_pct),
     ):
         if abs(float(pct)) < 1e-9:
             continue

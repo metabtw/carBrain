@@ -75,6 +75,22 @@ def test_combined_tune_is_deterministic(demo_bin):
     }
 
 
+def test_torque_limiter_scaling(demo_bin):
+    definition = EDC15_DEMO_PROFILE.map("torque_limiter")
+    before = np.array(EcuBinary(demo_bin, EDC15_DEMO_PROFILE).get_map("torque_limiter")["matrix"])
+    patched, report = scale_map(demo_bin, EDC15_DEMO_PROFILE, "torque_limiter", 6.0)
+    after = np.array(EcuBinary(bytes(patched), EDC15_DEMO_PROFILE).get_map("torque_limiter")["matrix"])
+    assert before.shape == (1, 16)
+    assert np.allclose(after, before * 1.06, atol=0.02)
+    assert report.map_key == "torque_limiter"
+    assert patched[definition.end_address:] == bytearray(demo_bin[definition.end_address:])
+
+
+def test_apply_tuning_includes_torque_map(demo_bin):
+    _, reports = apply_tuning(demo_bin, EDC15_DEMO_PROFILE, 0, 0, 0, 6.0)
+    assert [report.map_key for report in reports] == ["torque_limiter"]
+
+
 def test_zero_tune_is_noop(demo_bin):
     patched, reports = apply_tuning(demo_bin, EDC15_DEMO_PROFILE, 0, 0, 0)
     assert bytes(patched) == demo_bin

@@ -105,3 +105,29 @@ def test_negative_eco_injection_is_allowed():
     )
     assert result.allowed is True
     assert result.risk_level in {"low", "medium"}
+
+
+def test_torque_limiter_above_map_limit_is_rejected():
+    with pytest.raises(SafetyViolation) as excinfo:
+        GuardrailEngine().enforce(TuningRequest(torque_pct=16.0))
+    assert excinfo.value.code == "TORQUE_LIMITER_LIMIT"
+    assert "Tork limitörü" in str(excinfo.value)
+
+
+def test_torque_limiter_aggressive_is_warning_only():
+    result = GuardrailEngine().evaluate(TuningRequest(torque_pct=12.0))
+    assert result.allowed is True
+    assert any(d.code == "TORQUE_LIMITER_WARNING" for d in result.decisions)
+
+
+def test_torque_limiter_within_limit_has_no_decision():
+    result = GuardrailEngine().evaluate(TuningRequest(torque_pct=6.0))
+    codes = {d.code for d in result.decisions}
+    assert "TORQUE_LIMITER_LIMIT" not in codes
+    assert "TORQUE_LIMITER_WARNING" not in codes
+
+
+def test_rail_pressure_hard_limit_rejects():
+    with pytest.raises(SafetyViolation) as excinfo:
+        GuardrailEngine().enforce(TuningRequest(rail_pressure_bar=2300))
+    assert excinfo.value.code == "RAIL_PRESSURE_LIMIT"

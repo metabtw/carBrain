@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/dashboard-layout";
@@ -6,15 +6,24 @@ import { HeroBanner } from "@/components/hero-banner";
 import { FileDropZone } from "@/components/file-drop-zone";
 import { VehicleSummaryCard } from "@/components/vehicle-summary-card";
 import { ParameterCards } from "@/components/parameter-cards";
+import { AdvancedParameters } from "@/components/advanced-parameters";
 import { AiAssistant } from "@/components/ai-assistant";
 import { BottomBar } from "@/components/bottom-bar";
 import { Ecu3DVisualizer } from "@/components/ecu-3d-visualizer";
 import { AiMapAnalyzer } from "@/components/ai-map-analyzer";
-import { SAMPLE_VEHICLE, DEFAULT_PARAMS, type VehicleData, type TuningParams } from "@/lib/types";
+import {
+  SAMPLE_VEHICLE,
+  DEFAULT_PARAMS,
+  DEFAULT_HARDWARE,
+  type VehicleData,
+  type TuningParams,
+  type HardwareUpgradeKey,
+} from "@/lib/types";
 
 export default function DashboardPage() {
   const [vehicle, setVehicle] = useState<VehicleData | null>(SAMPLE_VEHICLE);
   const [params, setParams] = useState<TuningParams>(DEFAULT_PARAMS);
+  const [hardware, setHardware] = useState<HardwareUpgradeKey[]>(DEFAULT_HARDWARE);
   const [activeMapKey, setActiveMapKey] = useState<string>("boost");
   const [mapData, setMapData] = useState<any>(null);
   const [loadingMap, setLoadingMap] = useState<boolean>(false);
@@ -38,6 +47,34 @@ export default function DashboardPage() {
     loadMap();
   }, [activeMapKey]);
 
+  // Hazır profil sayfasından gelen değerleri uygula
+  // (/?turbo=12&injection=5&throttle=12&torque=6)
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const read = (key: string) => {
+      const raw = query.get(key);
+      if (raw === null || raw === "") return undefined;
+      const value = Number(raw);
+      return Number.isFinite(value) ? value : undefined;
+    };
+    const preset = {
+      turboPressure: read("turbo"),
+      injection: read("injection"),
+      throttleResponse: read("throttle"),
+      torqueLimiter: read("torque"),
+      timingAdvance: read("timing"),
+      railPressure: read("rail"),
+    };
+    setParams((prev) => {
+      const next = { ...prev };
+      (Object.keys(preset) as (keyof TuningParams)[]).forEach((key) => {
+        const value = preset[key];
+        if (value !== undefined) next[key] = value;
+      });
+      return next;
+    });
+  }, []);
+
   const handleParamChange = (key: keyof TuningParams, value: number) => {
     setParams((prev) => ({
       ...prev,
@@ -45,8 +82,16 @@ export default function DashboardPage() {
     }));
   };
 
-  const handleApplyParams = (newParams: TuningParams) => {
-    setParams(newParams);
+  const handleApplyParams = (newParams: Partial<TuningParams>) => {
+    // Asistan yalnÄ±zca birkaÃ§ parametre Ã¶nerir; diÄŸerlerini sÄ±fÄ±rlamak yerine
+    // mevcut deÄŸerlerin Ã¼zerine birleÅŸtiriyoruz.
+    setParams((prev) => ({ ...prev, ...newParams }));
+  };
+
+  const handleToggleHardware = (key: HardwareUpgradeKey) => {
+    setHardware((prev) =>
+      prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]
+    );
   };
 
   const handleFileLoad = (file: File, newVehicle: VehicleData) => {
@@ -59,42 +104,42 @@ export default function DashboardPage() {
         {/* Top Hero Banner */}
         <HeroBanner />
 
-        {/* Nasıl çalışır? */}
+        {/* NasÄ±l Ã§alÄ±ÅŸÄ±r? */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-soft dark:border-slate-800 dark:bg-slate-900">
             <span className="text-[10px] font-bold uppercase tracking-wide text-blue-600 dark:text-blue-400">
-              1. Adım · Doğrula
+              1. AdÄ±m Â· DoÄŸrula
             </span>
             <h3 className="mt-1.5 text-sm font-bold text-slate-900 dark:text-slate-100">
-              .bin dosyanızı güvenle yükleyin
+              .bin dosyanÄ±zÄ± gÃ¼venle yÃ¼kleyin
             </h3>
             <p className="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-              Python ayrıştırıcı dosya boyutunu ve ECU kimlik alanını kontrol eder.
-              Eşleşmeyen bir dosyada hiçbir adres tahmin edilmez.
+              Python ayrÄ±ÅŸtÄ±rÄ±cÄ± dosya boyutunu ve ECU kimlik alanÄ±nÄ± kontrol eder.
+              EÅŸleÅŸmeyen bir dosyada hiÃ§bir adres tahmin edilmez.
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-soft dark:border-slate-800 dark:bg-slate-900">
             <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
-              2. Adım · Ayarla
+              2. AdÄ±m Â· Ayarla
             </span>
             <h3 className="mt-1.5 text-sm font-bold text-slate-900 dark:text-slate-100">
-              Slider&apos;ları güvenlik zarfında oynatın
+              Slider&apos;larÄ± gÃ¼venlik zarfÄ±nda oynatÄ±n
             </h3>
             <p className="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-              Turbo, yakıt ve gaz tepkisi değerleri NumPy ile gerçek 16x16 harita
-              hücrelerine uygulanır. Güvenlik bekçisi EGT, tork ve avans sınırlarını denetler.
+              Turbo, yakÄ±t ve gaz tepkisi deÄŸerleri NumPy ile gerÃ§ek 16x16 harita
+              hÃ¼crelerine uygulanÄ±r. GÃ¼venlik bekÃ§isi EGT, tork ve avans sÄ±nÄ±rlarÄ±nÄ± denetler.
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-soft dark:border-slate-800 dark:bg-slate-900">
             <span className="text-[10px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">
-              3. Adım · İmzala
+              3. AdÄ±m Â· Ä°mzala
             </span>
             <h3 className="mt-1.5 text-sm font-bold text-slate-900 dark:text-slate-100">
-              Checksum&apos;ı doğrulanmış dosyayı indirin
+              Checksum&apos;Ä± doÄŸrulanmÄ±ÅŸ dosyayÄ± indirin
             </h3>
             <p className="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-              Dışa aktarımda checksum yeniden hesaplanır, dosya tekrar okunup doğrulanır.
-              İmza geçmezse indirme engellenir; böylece ECU&apos;nun brick olması önlenir.
+              DÄ±ÅŸa aktarÄ±mda checksum yeniden hesaplanÄ±r, dosya tekrar okunup doÄŸrulanÄ±r.
+              Ä°mza geÃ§mezse indirme engellenir; bÃ¶ylece ECU&apos;nun brick olmasÄ± Ã¶nlenir.
             </p>
           </div>
         </div>
@@ -118,10 +163,18 @@ export default function DashboardPage() {
 
             {/* Bottom Sub-row: 3 Interactive Tuning Cards */}
             <ParameterCards params={params} onChange={handleParamChange} />
+
+            {/* TÃ¼m parametreler: tork limitÃ¶rÃ¼, avans, ray basÄ±ncÄ±, donanÄ±m */}
+            <AdvancedParameters
+              params={params}
+              hardware={hardware}
+              onChange={handleParamChange}
+              onToggleHardware={handleToggleHardware}
+            />
           </div>
 
           {/* Right Section: AI Companion ("Oto-Asistan") */}
-          <div className="lg:col-span-4">
+          <div className="lg:col-span-4 lg:sticky lg:top-4 lg:self-start">
             <AiAssistant
               currentParams={params}
               onApplyParams={handleApplyParams}
@@ -134,47 +187,47 @@ export default function DashboardPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                Gerçek Zamanlı 3B ECU Yüzey Grafiği (Three.js)
+                GerÃ§ek ZamanlÄ± 3B ECU YÃ¼zey GrafiÄŸi (Three.js)
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Python çekirdek ayrıştırıcısı tarafından 0x4D200 adresinden okunan 16x16 matris ve eksen verileri.
+                Python Ã§ekirdek ayrÄ±ÅŸtÄ±rÄ±cÄ±sÄ± tarafÄ±ndan 0x4D200 adresinden okunan 16x16 matris ve eksen verileri.
               </p>
             </div>
 
-            {/* Map Switcher Tabs */}
-            <div className="flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            {/* Harita seÃ§ici sekmeler */}
+            <div className="flex max-w-full overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <button
                 type="button"
                 onClick={() => setActiveMapKey("boost")}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
                   activeMapKey === "boost"
                     ? "bg-blue-600 text-white shadow-sm"
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
                 }`}
               >
-                🚀 Turbo Basıncı (0x4D200)
+                ğŸš€ Turbo BasÄ±ncÄ± (0x4D200)
               </button>
               <button
                 type="button"
                 onClick={() => setActiveMapKey("driver_wish")}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
                   activeMapKey === "driver_wish"
                     ? "bg-blue-600 text-white shadow-sm"
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
                 }`}
               >
-                ⛽ Sürücü İsteği (0x4C120)
+                â›½ SÃ¼rÃ¼cÃ¼ Ä°steÄŸi (0x4C120)
               </button>
               <button
                 type="button"
                 onClick={() => setActiveMapKey("smoke_limiter")}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
                   activeMapKey === "smoke_limiter"
                     ? "bg-blue-600 text-white shadow-sm"
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
                 }`}
               >
-                💨 Duman Limiti (0x4E150)
+                ğŸ’¨ Duman Limiti (0x4E150)
               </button>
             </div>
           </div>
@@ -214,8 +267,9 @@ export default function DashboardPage() {
         />
 
         {/* Bottom Status & Action Bar */}
-        <BottomBar params={params} />
+        <BottomBar params={params} hardware={hardware} />
       </div>
     </DashboardLayout>
   );
 }
+

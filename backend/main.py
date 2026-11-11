@@ -168,9 +168,11 @@ class TuneInput(BaseModel):
     turbo: float = 0.0
     injection: float = 0.0
     throttle: float = 0.0
+    torque: float = 0.0
     turbo_pct: Optional[float] = None
     injection_pct: Optional[float] = None
     throttle_pct: Optional[float] = None
+    torque_pct: Optional[float] = None
     timing_advance_deg: Optional[float] = None
     rail_pressure_bar: Optional[float] = None
     ambient_temp_c: float = 25.0
@@ -185,6 +187,9 @@ class TuneInput(BaseModel):
             ),
             throttle_pct=(
                 self.throttle_pct if self.throttle_pct is not None else self.throttle
+            ),
+            torque_pct=(
+                self.torque_pct if self.torque_pct is not None else self.torque
             ),
             timing_advance_deg=self.timing_advance_deg,
             rail_pressure_bar=self.rail_pressure_bar,
@@ -434,6 +439,7 @@ def _perform_tune(request: TuningRequest) -> dict:
             request.turbo_pct,
             request.injection_pct,
             request.throttle_pct,
+            request.torque_pct,
         )
         sealed = ChecksumEngine(patched, session.profile).seal()
         verification = ChecksumEngine(sealed, session.profile).verify()
@@ -447,10 +453,13 @@ def _perform_tune(request: TuningRequest) -> dict:
             "turbo": request.turbo_pct,
             "injection": request.injection_pct,
             "throttle": request.throttle_pct,
+            "torque": request.torque_pct,
+            "timing_advance_deg": request.timing_advance_deg or 0.0,
+            "rail_pressure_bar": request.rail_pressure_bar or 0.0,
         }
         label = (
             f"Tune T{request.turbo_pct:+.0f}% / I{request.injection_pct:+.0f}% / "
-            f"P{request.throttle_pct:+.0f}%"
+            f"P{request.throttle_pct:+.0f}% / M{request.torque_pct:+.0f}%"
         )
         _add_history(session, label, sealed)
         binary = EcuBinary(sealed, session.profile)
@@ -466,6 +475,9 @@ def _perform_tune(request: TuningRequest) -> dict:
             "turbo_offset": request.turbo_pct,
             "injection_offset": request.injection_pct,
             "throttle_offset": request.throttle_pct,
+            "torque_offset": request.torque_pct,
+            "timing_advance_deg": request.timing_advance_deg,
+            "rail_pressure_bar": request.rail_pressure_bar,
         },
         "guardrail_warnings": guardrail.warnings,
         "guardrail": guardrail.as_dict(),
@@ -488,6 +500,7 @@ def patch_maps(
     turbo: float = Form(0.0),
     injection: float = Form(0.0),
     throttle: float = Form(0.0),
+    torque: float = Form(0.0),
     timing_advance_deg: Optional[float] = Form(None),
     rail_pressure_bar: Optional[float] = Form(None),
 ) -> dict:
@@ -496,6 +509,7 @@ def patch_maps(
             turbo_pct=turbo,
             injection_pct=injection,
             throttle_pct=throttle,
+            torque_pct=torque,
             timing_advance_deg=timing_advance_deg,
             rail_pressure_bar=rail_pressure_bar,
         )
@@ -505,12 +519,26 @@ def patch_maps(
 # ---------------------------------------------------------------------------
 # Export
 # ---------------------------------------------------------------------------
-def _export_bytes(turbo: float, injection: float, throttle: float) -> tuple[bytes, dict]:
+def _export_bytes(
+    turbo: float,
+    injection: float,
+    throttle: float,
+    torque: float = 0.0,
+    timing_advance_deg: Optional[float] = None,
+    rail_pressure_bar: Optional[float] = None,
+) -> tuple[bytes, dict]:
     session = get_session()
-    request = TuningRequest(turbo_pct=turbo, injection_pct=injection, throttle_pct=throttle)
+    request = TuningRequest(
+        turbo_pct=turbo,
+        injection_pct=injection,
+        throttle_pct=throttle,
+        torque_pct=torque,
+        timing_advance_deg=timing_advance_deg,
+        rail_pressure_bar=rail_pressure_bar,
+    )
     guardrail = GuardrailEngine().enforce(request)
     patched, _reports = apply_tuning(
-        session.base, session.profile, turbo, injection, throttle
+        session.base, session.profile, turbo, injection, throttle, torque
     )
     sealed = ChecksumEngine(patched, session.profile).seal()
     verification = ChecksumEngine(sealed, session.profile).verify()
@@ -527,10 +555,14 @@ def download_bin(
     turbo: float = Query(0.0),
     injection: float = Query(0.0),
     throttle: float = Query(0.0),
+    torque: float = Query(0.0),
+    timing: Optional[float] = Query(None),
+    rail: Optional[float] = Query(None),
 ) -> Response:
-    data, meta = _export_bytes(turbo, injection, throttle)
+    data, meta = _export_bytes(turbo, injection, throttle, torque, timing, rail)
     filename = (
-        f"edc15_tuned_T{int(turbo):+d}_I{int(injection):+d}_P{int(throttle):+d}.bin"
+        f"edc15_tuned_T{int(turbo):+d}_I{int(injection):+d}_P{int(throttle):+d}"
+        f"_M{int(torque):+d}.bin"
     )
     return Response(
         content=data,

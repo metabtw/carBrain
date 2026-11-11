@@ -20,15 +20,18 @@ export async function GET(request: NextRequest) {
     const turbo = parseFloat(searchParams.get("turbo") || "0");
     const injection = parseFloat(searchParams.get("injection") || "0");
     const throttle = parseFloat(searchParams.get("throttle") || "0");
+    const torque = parseFloat(searchParams.get("torque") || "0");
     const timing = searchParams.get("timing");
     const rail = searchParams.get("rail");
+    const hardware = searchParams.get("hardware") || "";
 
     const scriptPath = path.join(process.cwd(), "backend", "cli_tune.py");
     let cmd =
       `python "${scriptPath}" --input "${activeBinPath()}" --output "${tempOut}" ` +
-      `--turbo ${turbo} --injection ${injection} --throttle ${throttle}`;
-    if (timing !== null) cmd += ` --timing ${parseFloat(timing)}`;
-    if (rail !== null) cmd += ` --rail ${parseFloat(rail)}`;
+      `--turbo ${turbo} --injection ${injection} --throttle ${throttle} --torque ${torque}`;
+    if (timing !== null && timing !== "") cmd += ` --timing ${parseFloat(timing)}`;
+    if (rail !== null && rail !== "") cmd += ` --rail ${parseFloat(rail)}`;
+    if (hardware) cmd += ` --hardware "${hardware.replace(/"/g, "")}"`;
 
     const { stdout } = await execAsync(cmd);
     const meta = JSON.parse(stdout);
@@ -43,7 +46,9 @@ export async function GET(request: NextRequest) {
     const fileBuffer = fs.readFileSync(tempOut);
     const filename = `autotune_edc15_T${turbo >= 0 ? "+" : ""}${turbo}_I${
       injection >= 0 ? "+" : ""
-    }${injection}_P${throttle >= 0 ? "+" : ""}${throttle}.bin`;
+    }${injection}_P${throttle >= 0 ? "+" : ""}${throttle}_M${
+      torque >= 0 ? "+" : ""
+    }${torque}.bin`;
 
     return new NextResponse(fileBuffer, {
       status: 200,

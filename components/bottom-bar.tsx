@@ -9,13 +9,14 @@ import {
   ArrowRight,
   Check,
 } from "lucide-react";
-import type { TuningParams } from "@/lib/types";
+import type { HardwareUpgradeKey, TuningParams } from "@/lib/types";
 
 interface BottomBarProps {
   params: TuningParams;
+  hardware?: HardwareUpgradeKey[];
 }
 
-export function BottomBar({ params }: BottomBarProps) {
+export function BottomBar({ params, hardware = [] }: BottomBarProps) {
   const [downloading, setDownloading] = useState(false);
   const [exported, setExported] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +30,12 @@ export function BottomBar({ params }: BottomBarProps) {
         turbo: String(params.turboPressure),
         injection: String(params.injection),
         throttle: String(params.throttleResponse),
+        torque: String(params.torqueLimiter),
       });
+      if (params.timingAdvance > 0) query.set("timing", String(params.timingAdvance));
+      if (params.railPressure > 0) query.set("rail", String(params.railPressure));
+      if (hardware.length > 0) query.set("hardware", hardware.join(","));
+
       const res = await fetch(`/api/ecu/export?${query.toString()}`);
       if (!res.ok) {
         let message = "Dışa aktarma reddedildi.";

@@ -177,6 +177,21 @@ işaretlemek.
 | Turbo basıncı | `boost` | Yalnızca `> 1000 mbar` hücreleri ölçeklenir |
 | Enjeksiyon | `smoke_limiter` | Maksimum yakıt sınırı ölçeklenir |
 | Gaz tepkisi | `driver_wish` | Pedal → istenen yakıt miktarı ölçeklenir |
+| Tork limitörü | `torque_limiter` | Maksimum izin verilen tork tavanı ölçeklenir |
+
+Arayüzdeki üç ana kartın altındaki **Gelişmiş Parametreler** paneli şunları sunar:
+
+| Parametre | Aralık | Davranış |
+| --- | --- | --- |
+| Tork limitörü | ±%15 (harita sert sınırı) | `0x4F080` tork tavanı; tek başına tork üretmez |
+| Ateşleme avansı | 0–10° (güvenli ≤ 8°) | 8° üzeri backend tarafından reddedilir (vuruntu) |
+| Ray basıncı | 0–2100 bar (0 = dokunma) | 1900 bar uyarı, 2100 bar ret |
+| Donanım beyanı | 7 seçenek | Büyük turbo + enjektör + dyno üçlüsü zarfı ±%20'den ±%25'e açar |
+
+Avans ve ray basıncı **harita hücresi yazmaz**; bunlar mühendislik zarfı
+parametreleridir. Değerler `guardrails.py` tarafından değerlendirilir ve
+dışa aktarım sırasında tekrar denetlenir. Böylece arayüzde "kabul edilmiş"
+görünen bir ayar, dosyaya yazılmadan önce aynı kurallardan geçer.
 
 Örnek turbo matematiği:
 
@@ -240,6 +255,7 @@ için muhafazakâr bir zarf uygular:
 | Yakıt miktarı | > +%10 | Mutlak sınır aşılırsa |
 | Hava/yakıt zarfı | — | `yakıt - turbo > 8` puan |
 | Gaz pedalı | > +%15 | — |
+| Tork limitörü haritası | > +%10 | > +%15 |
 | Avans | > +5° | > +8° → **vuruntu (detonation)** |
 | Ray basıncı | > 1900 bar | > 2100 bar |
 | Tahmini tork | — | > +%20 (stok donanım) |
@@ -286,10 +302,11 @@ FastAPI servisi: `http://127.0.0.1:8000` · Swagger: `/docs`
 | POST | `/api/validate` | Sadece güvenlik değerlendirmesi |
 | POST | `/api/tune` | JSON ile güvenli tune + checksum |
 | POST | `/api/patch` | Form ile güvenli tune (eski arayüz uyumu) |
-| GET | `/api/download` | İmzalı `.bin` indir |
+| GET | `/api/download` | İmzalı `.bin` indir (`turbo, injection, throttle, torque, timing, rail, hardware`) |
 | GET | `/api/checksum/verify` | Aktif dosyanın imza durumu |
 | GET | `/api/ai/status` | Ollama bağlantısı + yüklü modeller |
 | GET | `/api/ai/analyze-map` | LLM + XDF harita analizi |
+| POST | `/api/ecu/validate` | Canlı güvenlik doğrulaması (dosya yazmaz) |
 | GET | `/api/versions` | Sürüm zinciri (metadata) |
 | GET | `/api/versions/{id}/download` | Eski sürümü indir |
 | POST | `/api/versions/{id}/restore` | Sürümü geri yükle |
@@ -355,12 +372,19 @@ yine %100 doğrulanır. Böylece güvenlik doğrulaması LLM'e bağımlı değil
 
 ## 9. Arayüz sayfaları
 
-- **Kontrol Paneli:** Dosya yükleme, araç özeti, üç slider, 3B/2B harita,
-  AI asistan ve checksum'lı dışa aktarma. Üstte "1. Doğrula → 2. Ayarla →
-  3. İmzala" açıklama şeridi bulunur.
+- **Kontrol Paneli:** Dosya yükleme, araç özeti, üç slider, **Gelişmiş Parametreler**
+  (tork limitörü, avans, ray basıncı, donanım beyanı + canlı guardrail sonucu),
+  3B/2B harita, AI asistan ve checksum'lı dışa aktarma. Üstte "1. Doğrula →
+  2. Ayarla → 3. İmzala" açıklama şeridi bulunur.
+- **Duyarlı yerleşim:** 1024px altında sabit sidebar gizlenir ve üst çubuktaki
+  hamburger menü devreye girer; tüm sayfalar tek sütuna iner, yatay kaydırma
+  oluşmaz. AI asistan kartı sabit yüksekliktedir — mesaj listesi kendi içinde
+  kayar, sayfayı aşağı itmez. Masaüstünde `sticky` olarak görünür kalır.
 - **Dosyalarım:** Orijinal ve türetilmiş dosyalar, v1/v2/v3 sürüm zinciri.
 - **Pazar Yeri / Hazır Haritalar:** Güvenli günlük, ekonomi, Stage 1 ve yokuş
-  profilleri; her profil guardrail sonucu ile listelenir.
+  profilleri; her profil guardrail sonucu ile listelenir. "Dashboard'da Uygula"
+  bağlantısı turbo, enjeksiyon, gaz tepkisi **ve tork limitörünü** query
+  parametreleriyle aktarır (`/?turbo=12&injection=5&throttle=12&torque=8`).
 - **Canlı Test (OBD2):** CSV yükleme, boost spike/lag/ray basıncı analizi.
 - **Tuning Akademisi:** ECU, EGT, checksum ve AFR açıklamaları.
 - **Güvenlik & Ayarlar:** Emniyet kilidi, otomatik checksum, yedekleme.
@@ -457,7 +481,7 @@ npm start
 python -m pytest
 ```
 
-Beklenen: **63 test geçer**. Kapsam:
+Beklenen: **74 test geçer**. Kapsam:
 
 - `test_parser.py`: boyut/kimlik doğrulama, sınır kontrolü, little-endian,
   16x16 şekil, eksen ve kalibrasyon.
@@ -472,8 +496,9 @@ Beklenen: **63 test geçer**. Kapsam:
 - `test_datalogger.py`: temiz log, spike, lag, düşük ray basıncı, pozisyonel
   fallback, boş dosya.
 - `test_ai.py`: Ollama durum kodları, model çözümleme/fallback davranışı.
-- `test_api.py` ayrıca `/health`, `/healthz` takma adlarını ve `/api/ai/status`
-  ucunu doğrular.
+- `test_api.py` ayrıca `/health`, `/healthz` takma adlarını, `/api/ai/status`
+  ucunu, tork limitörü/avans/ray basıncı parametrelerini ve genişletilmiş
+  donanım zarfını doğrular.
 
 Tek bir dosya:
 

@@ -37,12 +37,23 @@ def main() -> None:
         sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description="AutoTune AI safe export CLI")
     parser.add_argument("--input", required=True)
-    parser.add_argument("--output", required=True)
+    parser.add_argument("--output", required=False)
     parser.add_argument("--turbo", type=float, default=0.0)
     parser.add_argument("--injection", type=float, default=0.0)
     parser.add_argument("--throttle", type=float, default=0.0)
+    parser.add_argument("--torque", type=float, default=0.0)
     parser.add_argument("--timing", type=float, default=None)
     parser.add_argument("--rail", type=float, default=None)
+    parser.add_argument(
+        "--hardware",
+        default="",
+        help="Virgülle ayrılmış donanım anahtarları (upgraded_turbo, dyno_verified...)",
+    )
+    parser.add_argument(
+        "--validate-only",
+        action="store_true",
+        help="Dosya yazmadan yalnızca güvenlik değerlendirmesini döndür",
+    )
     args = parser.parse_args()
 
     try:
@@ -53,12 +64,39 @@ def main() -> None:
             turbo_pct=args.turbo,
             injection_pct=args.injection,
             throttle_pct=args.throttle,
+            torque_pct=args.torque,
             timing_advance_deg=args.timing,
             rail_pressure_bar=args.rail,
+            hardware_upgrades=[
+                item.strip() for item in args.hardware.split(",") if item.strip()
+            ],
         )
+
+        if args.validate_only:
+            # Bu mod hiçbir zaman dosya yazmaz; arayüzdeki canlı güvenlik paneli
+            # için her durumda guardrail sonucunu döndürür.
+            result = GuardrailEngine().evaluate(request)
+            print(
+                json.dumps(
+                    {
+                        "success": True,
+                        "guardrail": result.as_dict(),
+                        "profile": {
+                            "id": profile.id,
+                            "display_name": profile.display_name,
+                            "confidence": profile.confidence,
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+            )
+            return
+
         guardrail = GuardrailEngine().enforce(request)
+        if not args.output:
+            raise ValueError("--output zorunlu (validate-only kullanmıyorsanız).")
         patched, reports = apply_tuning(
-            data, profile, args.turbo, args.injection, args.throttle
+            data, profile, args.turbo, args.injection, args.throttle, args.torque
         )
         sealed = ChecksumEngine(patched, profile).seal()
         verification = ChecksumEngine(sealed, profile).verify()

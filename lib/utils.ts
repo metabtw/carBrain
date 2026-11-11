@@ -1,14 +1,17 @@
-import { SAMPLE_VEHICLE, type TuningParams } from "@/lib/types";
+import { DEFAULT_PARAMS, SAMPLE_VEHICLE, type TuningParams } from "@/lib/types";
 
 export function getMockFileContent(params?: TuningParams): Uint8Array {
   // Construct a realistic mock ECU binary header & map table
-  const p = params || { turboPressure: 0, injection: 0, throttleResponse: 0 };
+  const p = params || DEFAULT_PARAMS;
   const header = `AUTOTUNE_ECU_BIN_V1.0\n` +
     `VEHICLE: Volkswagen Golf IV 1.9 TDI\n` +
     `ECU: Bosch EDC15P+\n` +
     `TURBO_PRESSURE_OFFSET: ${p.turboPressure}%\n` +
     `INJECTION_MAP_OFFSET: ${p.injection}%\n` +
     `THROTTLE_MAP_OFFSET: ${p.throttleResponse}%\n` +
+    `TORQUE_LIMITER_OFFSET: ${p.torqueLimiter}%\n` +
+    `TIMING_ADVANCE_DEG: ${p.timingAdvance}\n` +
+    `RAIL_PRESSURE_BAR: ${p.railPressure || "stok"}\n` +
     `EST_POWER: ${101 + p.turboPressure} HP\n` +
     `CHECKSUM: 0x${Math.abs((0x89FA2C + p.turboPressure * 137 + p.injection * 73 + p.throttleResponse * 29) & 0xFFFFFF).toString(16).toUpperCase()}\n` +
     `STATUS: CHECKSUM_CORRECT_AND_SECURED\n` +
