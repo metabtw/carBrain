@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import DashboardLayout from "@/components/dashboard-layout";
 import { Star, Zap, Fuel, Shield, Mountain, Check } from "lucide-react";
@@ -7,9 +7,9 @@ import Link from "next/link";
 const PRESETS = [
   {
     id: "safe-daily",
-    title: "GÃ¼venli GÃ¼nlÃ¼k SÃ¼rÃ¼ÅŸ",
-    subtitle: "Dengeli GÃ¼nlÃ¼k SÃ¼rÃ¼ÅŸ",
-    desc: "Motor Ã¶mrÃ¼nÃ¼ ve yakÄ±t ekonomisini korurken hafif ivmelenme tepkisi kazandÄ±rÄ±r.",
+    title: "Güvenli Günlük Sürüş",
+    subtitle: "Dengeli Günlük Sürüş",
+    desc: "Motor ömrünü ve yakıt ekonomisini korurken hafif ivmelenme tepkisi kazandırır.",
     turbo: "+4%",
     injection: "-4%",
     throttle: "+5%",
@@ -24,8 +24,8 @@ const PRESETS = [
   {
     id: "eco-saver",
     title: "Ekonomi ve Uzun Yol",
-    subtitle: "Maksimum YakÄ±t Tasarrufu",
-    desc: "Uzun yol ve ÅŸehir iÃ§i sakin sÃ¼rÃ¼ÅŸlerde %10-15 yakÄ±t tasarrufu hedefler.",
+    subtitle: "Maksimum Yakıt Tasarrufu",
+    desc: "Uzun yol ve şehir içi sakin sürüşlerde %10-15 yakıt tasarrufu hedefler.",
     turbo: "+2%",
     injection: "-8%",
     throttle: "+2%",
@@ -40,8 +40,8 @@ const PRESETS = [
   {
     id: "sport-stage1",
     title: "Stage 1 Dinamik Sport",
-    subtitle: "Sportif Yol PerformansÄ±",
-    desc: "Fabrika turbo ve enjektÃ¶r sÄ±nÄ±rlarÄ± iÃ§inde kalarak +15 HP ve +30 Nm ekstra gÃ¼Ã§ saÄŸlar.",
+    subtitle: "Sportif Yol Performansı",
+    desc: "Fabrika turbo ve enjektör sınırları içinde kalarak +15 HP ve +30 Nm ekstra güç sağlar.",
     turbo: "+12%",
     injection: "+5%",
     throttle: "+12%",
@@ -55,9 +55,9 @@ const PRESETS = [
   },
   {
     id: "mountain-towing",
-    title: "YokuÅŸ TÄ±rmanÄ±ÅŸÄ± ve Ã‡ekiÅŸ",
-    subtitle: "YokuÅŸ ve Ã‡ekiÅŸ DesteÄŸi",
-    desc: "DÃ¼ÅŸÃ¼k devirlerde erken tork Ã¼reterek rampalarda ve yÃ¼k taÅŸÄ±mada rahatlatÄ±r.",
+    title: "Yokuş Tırmanışı ve Çekiş",
+    subtitle: "Yokuş ve Çekiş Desteği",
+    desc: "Düşük devirlerde erken tork üreterek rampalarda ve yük taşımada rahatlatır.",
     turbo: "+10%",
     injection: "+4%",
     throttle: "+8%",
@@ -67,7 +67,7 @@ const PRESETS = [
     torqueNum: 6,
     icon: Mountain,
     color: "from-amber-500 to-orange-600",
-    badge: "Tork OdaklÄ±",
+    badge: "Tork Odaklı",
   },
 ];
 
@@ -78,22 +78,22 @@ export default function PresetsPage() {
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2.5">
             <Star className="h-7 w-7 text-amber-500" />
-            HazÄ±r Tuning Profilleri
+            Hazır Tuning Profilleri
           </h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Yapay zeka ve uzman kalibratÃ¶rler tarafÄ±ndan test edilmiÅŸ hazÄ±r ECU profilleri.
-            Bir profile tÄ±kladÄ±ÄŸÄ±nÄ±zda deÄŸerler kontrol paneline taÅŸÄ±nÄ±r; dosyanÄ±z yine
-            gÃ¼venlik bekÃ§isi ve checksum doÄŸrulamasÄ±ndan geÃ§meden dÄ±ÅŸa aktarÄ±lmaz.
+            Yapay zeka ve uzman kalibratörler tarafından test edilmiş hazır ECU profilleri.
+            Bir profile tıkladığınızda değerler kontrol paneline taşınır; dosyanız yine
+            güvenlik bekçisi ve checksum doğrulamasından geçmeden dışa aktarılmaz.
           </p>
         </div>
 
         <div className="rounded-2xl border border-blue-200/70 bg-blue-50/70 p-4 text-xs leading-relaxed text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-200">
-          <strong className="font-bold">HazÄ±r profil havuzu nasÄ±l Ã§alÄ±ÅŸÄ±r?</strong>{" "}
-          Usta tuner&apos;lar kendi Stage 1 dosyalarÄ±nÄ± yÃ¼kleyip paylaÅŸabilir; yeni baÅŸlayanlar
-          tek tÄ±kla bu deÄŸerleri kendi araÃ§larÄ±na uygulayabilir. PaylaÅŸÄ±lan her profil,
-          backend&apos;deki mÃ¼hendislik sÄ±nÄ±rlarÄ± (turbo, yakÄ±t, EGT, tork) ve 16x16 harita
-          doÄŸrulamasÄ± ile denetlenir. Bu demo sÃ¼rÃ¼mÃ¼nde profiller yerel olarak saklanÄ±r;
-          Ã¼retimde Supabase tablosu ve moderasyon akÄ±ÅŸÄ± kullanÄ±lÄ±r.
+          <strong className="font-bold">Hazır profil havuzu nasıl çalışır?</strong>{" "}
+          Usta tuner&apos;lar kendi Stage 1 dosyalarını yükleyip paylaşabilir; yeni başlayanlar
+          tek tıkla bu değerleri kendi araçlarına uygulayabilir. Paylaşılan her profil,
+          backend&apos;deki mühendislik sınırları (turbo, yakıt, EGT, tork) ve 16x16 harita
+          doğrulaması ile denetlenir. Bu demo sürümünde profiller yerel olarak saklanır;
+          üretimde Supabase tablosu ve moderasyon akışı kullanılır.
         </div>
 
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
@@ -161,4 +161,3 @@ export default function PresetsPage() {
     </DashboardLayout>
   );
 }
-

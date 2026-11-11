@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/dashboard-layout";
@@ -83,8 +83,8 @@ export default function DashboardPage() {
   };
 
   const handleApplyParams = (newParams: Partial<TuningParams>) => {
-    // Asistan yalnÄ±zca birkaÃ§ parametre Ã¶nerir; diÄŸerlerini sÄ±fÄ±rlamak yerine
-    // mevcut deÄŸerlerin Ã¼zerine birleÅŸtiriyoruz.
+    // Asistan yalnızca birkaç parametre önerir; diğerlerini sıfırlamak yerine
+    // mevcut değerlerin üzerine birleştiriyoruz.
     setParams((prev) => ({ ...prev, ...newParams }));
   };
 
@@ -104,42 +104,42 @@ export default function DashboardPage() {
         {/* Top Hero Banner */}
         <HeroBanner />
 
-        {/* NasÄ±l Ã§alÄ±ÅŸÄ±r? */}
+        {/* Nasıl çalışır? */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-soft dark:border-slate-800 dark:bg-slate-900">
             <span className="text-[10px] font-bold uppercase tracking-wide text-blue-600 dark:text-blue-400">
-              1. AdÄ±m Â· DoÄŸrula
+              1. Adım · Doğrula
             </span>
             <h3 className="mt-1.5 text-sm font-bold text-slate-900 dark:text-slate-100">
-              .bin dosyanÄ±zÄ± gÃ¼venle yÃ¼kleyin
+              .bin dosyanızı güvenle yükleyin
             </h3>
             <p className="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-              Python ayrÄ±ÅŸtÄ±rÄ±cÄ± dosya boyutunu ve ECU kimlik alanÄ±nÄ± kontrol eder.
-              EÅŸleÅŸmeyen bir dosyada hiÃ§bir adres tahmin edilmez.
+              Python ayrıştırıcı dosya boyutunu ve ECU kimlik alanını kontrol eder.
+              Eşleşmeyen bir dosyada hiçbir adres tahmin edilmez.
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-soft dark:border-slate-800 dark:bg-slate-900">
             <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
-              2. AdÄ±m Â· Ayarla
+              2. Adım · Ayarla
             </span>
             <h3 className="mt-1.5 text-sm font-bold text-slate-900 dark:text-slate-100">
-              Slider&apos;larÄ± gÃ¼venlik zarfÄ±nda oynatÄ±n
+              Slider&apos;ları güvenlik zarfında oynatın
             </h3>
             <p className="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-              Turbo, yakÄ±t ve gaz tepkisi deÄŸerleri NumPy ile gerÃ§ek 16x16 harita
-              hÃ¼crelerine uygulanÄ±r. GÃ¼venlik bekÃ§isi EGT, tork ve avans sÄ±nÄ±rlarÄ±nÄ± denetler.
+              Turbo, yakıt ve gaz tepkisi değerleri NumPy ile gerçek 16x16 harita
+              hücrelerine uygulanır. Güvenlik bekçisi EGT, tork ve avans sınırlarını denetler.
             </p>
           </div>
           <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-soft dark:border-slate-800 dark:bg-slate-900">
             <span className="text-[10px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">
-              3. AdÄ±m Â· Ä°mzala
+              3. Adım · İmzala
             </span>
             <h3 className="mt-1.5 text-sm font-bold text-slate-900 dark:text-slate-100">
-              Checksum&apos;Ä± doÄŸrulanmÄ±ÅŸ dosyayÄ± indirin
+              Checksum&apos;ı doğrulanmış dosyayı indirin
             </h3>
             <p className="mt-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-              DÄ±ÅŸa aktarÄ±mda checksum yeniden hesaplanÄ±r, dosya tekrar okunup doÄŸrulanÄ±r.
-              Ä°mza geÃ§mezse indirme engellenir; bÃ¶ylece ECU&apos;nun brick olmasÄ± Ã¶nlenir.
+              Dışa aktarımda checksum yeniden hesaplanır, dosya tekrar okunup doğrulanır.
+              İmza geçmezse indirme engellenir; böylece ECU&apos;nun brick olması önlenir.
             </p>
           </div>
         </div>
@@ -164,7 +164,7 @@ export default function DashboardPage() {
             {/* Bottom Sub-row: 3 Interactive Tuning Cards */}
             <ParameterCards params={params} onChange={handleParamChange} />
 
-            {/* TÃ¼m parametreler: tork limitÃ¶rÃ¼, avans, ray basÄ±ncÄ±, donanÄ±m */}
+            {/* Tüm parametreler: tork limitörü, avans, ray basıncı, donanım */}
             <AdvancedParameters
               params={params}
               hardware={hardware}
@@ -187,14 +187,14 @@ export default function DashboardPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                GerÃ§ek ZamanlÄ± 3B ECU YÃ¼zey GrafiÄŸi (Three.js)
+                Gerçek Zamanlı 3B ECU Yüzey Grafiği (Three.js)
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Python Ã§ekirdek ayrÄ±ÅŸtÄ±rÄ±cÄ±sÄ± tarafÄ±ndan 0x4D200 adresinden okunan 16x16 matris ve eksen verileri.
+                Python çekirdek ayrıştırıcısı tarafından 0x4D200 adresinden okunan 16x16 matris ve eksen verileri.
               </p>
             </div>
 
-            {/* Harita seÃ§ici sekmeler */}
+            {/* Harita seçici sekmeler */}
             <div className="flex max-w-full overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <button
                 type="button"
@@ -205,7 +205,7 @@ export default function DashboardPage() {
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
                 }`}
               >
-                ğŸš€ Turbo BasÄ±ncÄ± (0x4D200)
+                🚀 Turbo Basıncı (0x4D200)
               </button>
               <button
                 type="button"
@@ -216,7 +216,7 @@ export default function DashboardPage() {
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
                 }`}
               >
-                â›½ SÃ¼rÃ¼cÃ¼ Ä°steÄŸi (0x4C120)
+                ⛽ Sürücü İsteği (0x4C120)
               </button>
               <button
                 type="button"
@@ -227,7 +227,7 @@ export default function DashboardPage() {
                     : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
                 }`}
               >
-                ğŸ’¨ Duman Limiti (0x4E150)
+                💨 Duman Limiti (0x4E150)
               </button>
             </div>
           </div>
@@ -272,4 +272,3 @@ export default function DashboardPage() {
     </DashboardLayout>
   );
 }
-
