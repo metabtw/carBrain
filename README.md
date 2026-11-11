@@ -445,16 +445,28 @@ git commit -m "Türkçe arayüz, FastAPI/NumPy ECU motoru, checksum ve güvenlik
 ```
 
 Uzak depo yalnızca eski bir `README.md` içerdiği için temiz yerel geçmişin
-üzerine yazmak güvenliydi:
+üzerine yazmak güvenliydi.
+
+**Kritik ayrıntı:** `node_modules` yalnızca indeksten çıkarılırsa, silme commit'i
+eski 79 MB'lık pack'i hâlâ ebeveyn olarak taşır. İlk `git push` bu yüzden
+`HTTP 408` / `RPC failed` ile düşebilir. Depoyu gerçekten küçültmek için temiz
+ağacı yeni bir kök (orphan) commit'e taşıdık:
 
 ```powershell
-git fetch origin
-git push --force-with-lease origin main
+git checkout --orphan clean-main
+git rm -r --cached --quiet .
+git add -A
+git commit -m "AutoTune AI v2.0.0 - Türkçe arayüz, FastAPI ECU çekirdeği, checksum ve güvenlik katmanı"
+git branch -M main
+
+git config http.postBuffer 524288000
+git -c http.lowSpeedLimit=0 -c http.lowSpeedTime=999999 push --force origin main
 ```
 
-`--force` yerine `--force-with-lease` kullanmak, siz çalışırken başkası depoya
-push yaptıysa işlemi durdurur. Ekip çalışmasında önce `git pull --rebase` veya
-ortak geçmiş oluşturma (`git merge --allow-unrelated-histories`) tercih edilir.
+`--force-with-lease` normalde tercih edilir; ancak uzak depo yalnızca tek bir
+README commit'i içerdiği ve geçmişler tamamen ilişkisiz olduğu için bu tek
+seferlik geçişte `--force` kullanıldı. Ekip çalışmasında önce `git pull --rebase`
+veya ortak geçmiş oluşturma (`git merge --allow-unrelated-histories`) tercih edilir.
 
 Doğrulama:
 
