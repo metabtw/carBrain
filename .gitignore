@@ -1,0 +1,32 @@
+# Node / Next.js
+node_modules/
+.next/
+out/
+build/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+backend/.venv/
+
+# Ortam değişkenleri / sırlar
+.env
+.env.local
+.env.*.local
+
+# Yüklenen geçici ECU dosyaları
+data/.session_upload.bin
+data/*.tmp
+*.log
+
+# İşletim sistemi
+.DS_Store
+Thumbs.db
+
+# Editör
+.vscode/
+.idea/

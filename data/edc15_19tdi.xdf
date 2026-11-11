@@ -1,0 +1,114 @@
+<!-- TunerPro XDF Definition File for Bosch EDC15 1.9 TDI -->
+<XDFFORMAT version="1.60">
+  <XDFHEADER>
+    <flags>0x1</flags>
+    <deletable>1</deletable>
+    <description>Bosch EDC15P+ 1.9 TDI Standard Calibration Map Definition</description>
+    <author>AutoTune AI Ground-Truth Database</author>
+    <BASEOFFSET offset="0x0" />
+    <DEFAULTS datasize="2" sigdigits="1" outputtype="1" signed="0" lsbfirst="1" />
+  </XDFHEADER>
+
+  <!-- MAP 1: Turbo Boost Target Map (16x16) -->
+  <XDFTABLE uniqueid="0x4D200" flags="0x0">
+    <title>Ladedruck Soll (Turbo Boost Target Map)</title>
+    <description>Target absolute intake manifold turbo pressure in mbar</description>
+    <CATEGORYMEM index="0" category="1" />
+    <XDFAXIS id="x" uniqueid="0x0">
+      <EMBEDDEDDATA mmedelementsizebits="16" mmedelements="16" mmedmajorstridebits="0" mmedminorstridebits="0" />
+      <units>mg/H</units>
+      <indexcount>16</indexcount>
+      <datatype>0</datatype>
+      <unittype>0</unittype>
+      <DALINK index="0" />
+      <LABEL index="0" value="10.0" />
+      <LABEL index="15" value="55.0" />
+      <MATH equation="X * 0.01">
+        <VAR id="X" />
+      </MATH>
+    </XDFAXIS>
+    <XDFAXIS id="y" uniqueid="0x0">
+      <EMBEDDEDDATA mmedelementsizebits="16" mmedelements="16" mmedmajorstridebits="0" mmedminorstridebits="0" />
+      <units>RPM</units>
+      <indexcount>16</indexcount>
+      <datatype>0</datatype>
+      <unittype>0</unittype>
+      <DALINK index="0" />
+      <LABEL index="0" value="1200" />
+      <LABEL index="15" value="4500" />
+      <MATH equation="X * 1">
+        <VAR id="X" />
+      </MATH>
+    </XDFAXIS>
+    <XDFAXIS id="z">
+      <EMBEDDEDDATA mmedtypeflags="0x02" mmedaddress="0x4D200" mmedelementsizebits="16" mmedelements="256" mmedrowelements="16" mmedcolumelements="16" mmedmajorstridebits="0" mmedminorstridebits="0" />
+      <units>mbar</units>
+      <decimalpl>0</decimalpl>
+      <datatype>0</datatype>
+      <unittype>0</unittype>
+      <DALINK index="0" />
+      <MATH equation="X * 0.1">
+        <VAR id="X" />
+      </MATH>
+    </XDFAXIS>
+  </XDFTABLE>
+
+  <!-- MAP 2: Driver Wish Map (16x16) -->
+  <XDFTABLE uniqueid="0x4C120" flags="0x0">
+    <title>Fahrerwunsch (Driver Wish)</title>
+    <description>Requested injection quantity based on throttle pedal position and RPM</description>
+    <CATEGORYMEM index="0" category="2" />
+    <XDFAXIS id="x" uniqueid="0x0">
+      <units>% Pedal</units>
+      <indexcount>16</indexcount>
+      <MATH equation="X * 0.01">
+        <VAR id="X" />
+      </MATH>
+    </XDFAXIS>
+    <XDFAXIS id="y" uniqueid="0x0">
+      <units>RPM</units>
+      <indexcount>16</indexcount>
+      <MATH equation="X * 1">
+        <VAR id="X" />
+      </MATH>
+    </XDFAXIS>
+    <XDFAXIS id="z">
+      <EMBEDDEDDATA mmedtypeflags="0x02" mmedaddress="0x4C120" mmedelementsizebits="16" mmedelements="256" mmedrowelements="16" mmedcolumelements="16" />
+      <units>mg/str</units>
+      <decimalpl>2</decimalpl>
+      <MATH equation="X * 0.01">
+        <VAR id="X" />
+      </MATH>
+    </XDFAXIS>
+  </XDFTABLE>
+
+  <!-- MAP 3: Smoke Limiter Map (16x16) -->
+  <XDFTABLE uniqueid="0x4E150" flags="0x0">
+    <title>Rauchbegrenzer (Smoke Limiter)</title>
+    <description>Maximum injected fuel volume limited by actual MAF air mass to avoid smoke</description>
+    <CATEGORYMEM index="0" category="3" />
+    <XDFAXIS id="z">
+      <EMBEDDEDDATA mmedtypeflags="0x02" mmedaddress="0x4E150" mmedelementsizebits="16" mmedelements="256" mmedrowelements="16" mmedcolumelements="16" />
+      <units>mg/str</units>
+      <decimalpl>2</decimalpl>
+      <MATH equation="X * 0.01">
+        <VAR id="X" />
+      </MATH>
+    </XDFAXIS>
+  </XDFTABLE>
+
+  <!-- MAP 4: Torque Limiter (16x1) -->
+  <XDFTABLE uniqueid="0x4F080" flags="0x0">
+    <title>Drehmomentbegrenzer (Torque Limiter)</title>
+    <description>Main engine torque limiter curve across RPM</description>
+    <CATEGORYMEM index="0" category="4" />
+    <XDFAXIS id="z">
+      <EMBEDDEDDATA mmedtypeflags="0x02" mmedaddress="0x4F080" mmedelementsizebits="16" mmedelements="16" mmedrowelements="1" mmedcolumelements="16" />
+      <units>mg/str</units>
+      <decimalpl>2</decimalpl>
+      <MATH equation="X * 0.01">
+        <VAR id="X" />
+      </MATH>
+    </XDFAXIS>
+  </XDFTABLE>
+</XDFFORMAT>
