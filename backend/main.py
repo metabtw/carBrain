@@ -267,6 +267,60 @@ def health() -> dict:
     }
 
 
+# Bazı monitörler, tarayıcı eklentileri ve Docker healthcheck'leri doğrudan
+# `/health` çağırır. 404 yerine aynı gövdeyi döndürüyoruz.
+@app.get("/health", include_in_schema=False)
+@app.get("/healthz", include_in_schema=False)
+def health_alias() -> dict:
+    return health()
+
+
+@app.get("/api/ai/status")
+def ai_status() -> dict:
+    """
+    Ollama bağlantısını ve yüklü modelleri raporlar.
+
+    Arayüz bu uçla "AI çevrimiçi / çevrimdışı" rozetini besler; böylece
+    kullanıcı harita analizi başlatmadan önce sorunu görür.
+    """
+    try:
+        from ollama_analyzer import check_ollama_status
+    except ImportError:  # pragma: no cover
+        from .ollama_analyzer import check_ollama_status
+
+    status = check_ollama_status().as_dict()
+    status["preferred_models"] = ["qwen2.5-coder:7b", "llama3.1:8b"]
+    status["hint_tr"] = (
+        None
+        if status["online"]
+        else "Ollama kapalıysa harita analizi sezgisel motorla çalışır. "
+        "`ollama serve` ve `ollama pull qwen2.5-coder:7b` komutlarını çalıştırın."
+    )
+    return status
+
+
+@app.get("/api/ai/analyze-map")
+def ai_analyze_map(address: str = Query("0x4D200"), model: str = Query("qwen2.5-coder:7b")) -> dict:
+    """Belirtilen adresi yerel LLM + XDF referansıyla analiz eder."""
+    try:
+        from ollama_analyzer import OllamaEcuAnalyzer
+    except ImportError:  # pragma: no cover
+        from .ollama_analyzer import OllamaEcuAnalyzer
+
+    session = get_session()
+    try:
+        offset = int(address, 16) if address.lower().startswith("0x") else int(address)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Geçersiz adres: {address}")
+
+    analyzer = OllamaEcuAnalyzer(
+        os.path.join(DATA_DIR, "edc15_19tdi_stock.bin"),
+        os.path.join(DATA_DIR, "edc15_19tdi.xdf"),
+        bin_data=session.working,
+    )
+    return analyzer.analyze_address(offset, model)
+
+
 @app.get("/api/ecu/profile")
 def ecu_profile() -> dict:
     session = get_session()

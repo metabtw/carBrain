@@ -96,6 +96,7 @@ carBrain/
 │  ├─ checksum.py            # Bölge bazlı imza hesaplama + seal/verify
 │  ├─ guardrails.py          # Mühendislik limitleri ve SafetyViolation
 │  ├─ datalogger.py          # OBD2 CSV analiz motoru
+│  ├─ ollama_analyzer.py     # Yerel LLM + XDF doğrulayıcı (hata kodlu)
 │  ├─ main.py                # FastAPI uygulaması
 │  ├─ cli_tune.py            # Next.js export köprüsü (tam güvenli hat)
 │  ├─ cli_inspect.py         # Yükleme öncesi salt-okunur doğrulama
@@ -277,7 +278,7 @@ FastAPI servisi: `http://127.0.0.1:8000` · Swagger: `/docs`
 
 | Metot | Yol | Açıklama |
 | --- | --- | --- |
-| GET | `/api/health` | Servis, profil ve checksum durumu |
+| GET | `/api/health` | Servis, profil ve checksum durumu (`/health` ve `/healthz` takma adları da vardır) |
 | GET | `/api/ecu/profile` | Profil, haritalar, stok limitleri |
 | GET | `/api/ecu/info` | Kimlik, checksum, aktif haritalar |
 | POST | `/api/ecu/upload` | `.bin` doğrula ve oturuma al |
@@ -287,6 +288,8 @@ FastAPI servisi: `http://127.0.0.1:8000` · Swagger: `/docs`
 | POST | `/api/patch` | Form ile güvenli tune (eski arayüz uyumu) |
 | GET | `/api/download` | İmzalı `.bin` indir |
 | GET | `/api/checksum/verify` | Aktif dosyanın imza durumu |
+| GET | `/api/ai/status` | Ollama bağlantısı + yüklü modeller |
+| GET | `/api/ai/analyze-map` | LLM + XDF harita analizi |
 | GET | `/api/versions` | Sürüm zinciri (metadata) |
 | GET | `/api/versions/{id}/download` | Eski sürümü indir |
 | POST | `/api/versions/{id}/restore` | Sürümü geri yükle |
@@ -297,6 +300,58 @@ FastAPI servisi: `http://127.0.0.1:8000` · Swagger: `/docs`
 Next.js köprüsü, Python çekirdeği çalışmasa bile `backend/cli_tune.py`,
 `backend/cli_inspect.py` ve `backend/datalogger.py` CLI'ları üzerinden çalışabilir.
 Bu, geliştirme sırasında tek `npm run dev` ile denemeyi kolaylaştırır.
+
+### 8.1 Ollama / yerel LLM kurulumu
+
+AI harita analizi üç farklı hata kodu döndürür ve her biri için Türkçe çözüm
+önerir. Arayüzdeki "Ollama çevrimiçi / kapalı" rozeti bu durumu canlı gösterir.
+
+| Kod | Anlamı | Çözüm |
+| --- | --- | --- |
+| `OLLAMA_OFFLINE` | Port 11434 kapalı, servis çalışmıyor | `ollama serve` veya masaüstü uygulamasını açın |
+| `OLLAMA_TIMEOUT` | Servis ayakta, model ilk yüklemede yetişmedi | `ollama run qwen2.5-coder:7b` ile önceden yükleyin; `OLLAMA_TIMEOUT` (varsayılan 300 sn) artırın |
+| `OLLAMA_MODEL_MISSING` | İstenen model indirilmemiş | `ollama pull qwen2.5-coder:7b` |
+
+Kurulum:
+
+```powershell
+# 1) Ollama servisi (ayrı terminal)
+ollama serve
+
+# 2) Modeli indir (yaklaşık 4.7 GB)
+ollama pull qwen2.5-coder:7b
+
+# 3) Bağlantıyı doğrula
+python backend\ollama_analyzer.py --check
+
+# 4) Tek adres analizini dene
+python backend\ollama_analyzer.py --address 0x4D200 --timeout 300
+```
+
+Ortam değişkenleri:
+
+| Değişken | Varsayılan | Açıklama |
+| --- | --- | --- |
+| `OLLAMA_HOST` | `http://127.0.0.1:11434` | Ollama adresi |
+| `OLLAMA_MODEL` | `qwen2.5-coder:7b` | CLI varsayılan modeli |
+| `OLLAMA_TIMEOUT` | `300` | Üretim (generate) zaman aşımı, saniye |
+| `OLLAMA_STATUS_TIMEOUT` | `3` | Bağlantı kontrolü zaman aşımı |
+| `OLLAMA_KEEP_ALIVE` | `30m` | Modelin bellekte kalma süresi |
+| `AI_ANALYZE_TIMEOUT_MS` | `360000` | Next.js tarafındaki CLI zaman aşımı |
+
+**Neden ilk yanıt yavaş?** CPU'da 7B modelinin belleğe yüklenmesi 30-90 saniye
+sürebilir. Eski kod 15 saniyelik sabit bir zaman aşımı kullandığı için model
+yüklenirken "Ollama bağlantı hatası: timed out" veriyordu. Artık:
+
+- Zaman aşımı 300 sn (yapılandırılabilir),
+- `keep_alive=30m` ile model istekler arasında bellekte tutulur,
+- `temperature=0.2`, `num_predict=400` ile yanıt kısa ve deterministiğe yakın,
+- Zaman aşımında bile XDF tabanlı sezgisel analiz döner (boş ekran yok),
+- Hata kodu ve çözüm adımları arayüzde gösterilir.
+
+Ollama hiç çalışmasa dahi harita analizi **çalışmaya devam eder**: `source`
+alanı `heuristic_fallback` olur, `used_fallback=true` döner ve XDF eşleşmesi
+yine %100 doğrulanır. Böylece güvenlik doğrulaması LLM'e bağımlı değildir.
 
 ## 9. Arayüz sayfaları
 
@@ -310,6 +365,8 @@ Bu, geliştirme sırasında tek `npm run dev` ile denemeyi kolaylaştırır.
 - **Tuning Akademisi:** ECU, EGT, checksum ve AFR açıklamaları.
 - **Güvenlik & Ayarlar:** Emniyet kilidi, otomatik checksum, yedekleme.
 - **Hakkında:** Parser → guardrails → modifier → checksum mimarisi.
+- **AI Harita Madencisi (panel içinde):** Ollama canlı durum rozeti, hata kodu +
+  çözüm adımları, XDF doğrulama rozeti ve sezgisel yedek analiz.
 
 ## 10. Datalogger (OBD2 log analizi)
 
@@ -400,7 +457,7 @@ npm start
 python -m pytest
 ```
 
-Beklenen: **55 test geçer**. Kapsam:
+Beklenen: **63 test geçer**. Kapsam:
 
 - `test_parser.py`: boyut/kimlik doğrulama, sınır kontrolü, little-endian,
   16x16 şekil, eksen ve kalibrasyon.
@@ -414,6 +471,9 @@ Beklenen: **55 test geçer**. Kapsam:
   indirme başlıkları, upload, sürümler, RAG, presetler.
 - `test_datalogger.py`: temiz log, spike, lag, düşük ray basıncı, pozisyonel
   fallback, boş dosya.
+- `test_ai.py`: Ollama durum kodları, model çözümleme/fallback davranışı.
+- `test_api.py` ayrıca `/health`, `/healthz` takma adlarını ve `/api/ai/status`
+  ucunu doğrular.
 
 Tek bir dosya:
 

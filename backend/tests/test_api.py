@@ -23,6 +23,23 @@ def test_health(client):
     assert body["profile_confidence"] == "demo"
 
 
+def test_health_alias_avoids_404_for_monitors(client):
+    for path in ("/health", "/healthz"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert response.json()["status"] == "online"
+
+
+def test_ai_status_endpoint(client):
+    response = client.get("/api/ai/status")
+    assert response.status_code == 200
+    body = response.json()
+    assert "online" in body
+    assert "base_url" in body
+    assert isinstance(body["models"], list)
+    assert "preferred_models" in body
+
+
 def test_profile_and_maps(client):
     profile = client.get("/api/ecu/profile")
     assert profile.status_code == 200
