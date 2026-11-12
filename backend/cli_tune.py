@@ -92,6 +92,25 @@ def main() -> None:
             )
             return
 
+        if not profile.tuning_enabled:
+            print(
+                json.dumps(
+                    {
+                        "success": False,
+                        "error": "READ_ONLY_PROFILE",
+                        "detail": (
+                            f"{profile.display_name} profili salt okunurdur. Bu "
+                            "yazılım sürümü için doğrulanmış harita tanımı "
+                            "(XDF/DAMOS) bulunmadığından hiçbir bayt değiştirilmedi "
+                            "ve dosya dışa aktarılmadı."
+                        ),
+                        "profile_id": profile.id,
+                    },
+                    ensure_ascii=False,
+                )
+            )
+            sys.exit(5)
+
         guardrail = GuardrailEngine().enforce(request)
         if not args.output:
             raise ValueError("--output zorunlu (validate-only kullanmıyorsanız).")

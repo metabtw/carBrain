@@ -7,7 +7,11 @@ import type { VehicleData } from "@/lib/types";
 import { SAMPLE_VEHICLE } from "@/lib/types";
 
 interface FileDropZoneProps {
-  onFileLoad: (file: File, vehicle: VehicleData) => void;
+  onFileLoad: (
+    file: File,
+    vehicle: VehicleData,
+    meta?: { readOnly?: boolean; identity?: unknown }
+  ) => void;
   currentVehicle: VehicleData | null;
 }
 
@@ -75,20 +79,33 @@ export function FileDropZone({ onFileLoad, currentVehicle }: FileDropZoneProps) 
         );
         return;
       }
-      onFileLoad(file, {
-        ...SAMPLE_VEHICLE,
-        ecu: data?.identity?.display_name || SAMPLE_VEHICLE.ecu,
-        checksum:
-          data?.checksum?.overall_status === "VALID"
-            ? "Checksum doğrulandı"
-            : data?.checksum?.overall_status === "UNSEALED"
-            ? "İmzalanmamış stok dump"
-            : "Checksum doğrulanamadı",
-        status: "Dosya doğrulandı ve düzenleme oturumuna yüklendi",
-        fileName: file.name,
-        fileSize: `${Math.max(1, Math.round(file.size / 1024))} KB`,
-        loadedAt: "Şimdi",
-      });
+      const readOnly = data?.read_only === true || data?.tuning_enabled === false;
+      onFileLoad(
+        file,
+        {
+          ...SAMPLE_VEHICLE,
+          ecu: data?.identity?.display_name || SAMPLE_VEHICLE.ecu,
+          ecuType: readOnly
+            ? `${data?.identity?.profile_id || "EDC16"} · Salt Okunur İnceleme`
+            : SAMPLE_VEHICLE.ecuType,
+          checksum:
+            data?.checksum?.overall_status === "VALID"
+              ? "Checksum doğrulandı"
+              : data?.checksum?.overall_status === "UNSEALED"
+              ? "İmzalanmamış stok dump"
+              : data?.checksum?.overall_status === "NOT_APPLICABLE"
+              ? "Checksum bu profil için tanımlı değil"
+              : "Checksum doğrulanamadı",
+          status: readOnly
+            ? "Dosya tanındı · salt okunur inceleme (yazma kapalı)"
+            : "Dosya doğrulandı ve düzenleme oturumuna yüklendi",
+          statusVariant: readOnly ? "warning" : "success",
+          fileName: file.name,
+          fileSize: `${Math.max(1, Math.round(file.size / 1024))} KB`,
+          loadedAt: "Şimdi",
+        },
+        { readOnly, identity: data?.identity }
+      );
     } catch (err: any) {
       setError(
         err?.message ||

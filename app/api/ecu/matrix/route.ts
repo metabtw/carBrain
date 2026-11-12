@@ -32,21 +32,41 @@ export async function GET(request: NextRequest) {
       cmd += ` --address ${address} --rows ${rows} --cols ${cols} --factor ${factor}`;
     }
 
-    const { stdout, stderr } = await execAsync(cmd);
+    const { stdout, stderr } = await execAsync(cmd, {
+      timeout: 60_000,
+      maxBuffer: 16 * 1024 * 1024,
+      windowsHide: true,
+    });
     if (stderr && !stdout) {
       return NextResponse.json({ error: stderr }, { status: 500 });
     }
-
-    return NextResponse.json(JSON.parse(stdout));
+    try {
+      return NextResponse.json(JSON.parse(stdout));
+    } catch {
+      return NextResponse.json(
+        {
+          error: "PARSER_OUTPUT_INVALID",
+          detail: "Python ayrıştırıcısı geçerli JSON döndürmedi.",
+        },
+        { status: 500 }
+      );
+    }
   } catch (error: any) {
-    return NextResponse.json(
-      {
-        error:
-          error?.message ||
-          "İkili dosya ayrıştırılamadı. Python çekirdeğinin kurulu olduğundan emin olun.",
-      },
-      { status: 500 }
-    );
+    const stdout = error?.stdout?.toString?.() || "";
+    try {
+      const parsed = JSON.parse(stdout);
+      const status = parsed?.error === "MAP_NOT_DEFINED" ? 400 : 500;
+      return NextResponse.json(parsed, { status });
+    } catch {
+      return NextResponse.json(
+        {
+          error:
+            error?.message ||
+            "İkili dosya ayrıştırılamadı. Python çekirdeğinin kurulu olduğundan emin olun.",
+        },
+        { status: 500 }
+      );
+    }
   }
 }
 
@@ -70,12 +90,29 @@ export async function POST(request: NextRequest) {
     if (stderr && !stdout) {
       return NextResponse.json({ error: stderr }, { status: 500 });
     }
-    return NextResponse.json(JSON.parse(stdout));
+    try {
+      return NextResponse.json(JSON.parse(stdout));
+    } catch {
+      return NextResponse.json(
+        {
+          error: "PARSER_OUTPUT_INVALID",
+          detail: "Python ayrıştırıcısı geçerli JSON döndürmedi.",
+        },
+        { status: 500 }
+      );
+    }
   } catch (error: any) {
-    return NextResponse.json(
-      { error: error?.message || "Harita matrisi okunamadı." },
-      { status: 500 }
-    );
+    const stdout = error?.stdout?.toString?.() || "";
+    try {
+      const parsed = JSON.parse(stdout);
+      const status = parsed?.error === "MAP_NOT_DEFINED" ? 400 : 500;
+      return NextResponse.json(parsed, { status });
+    } catch {
+      return NextResponse.json(
+        { error: error?.message || "Harita matrisi okunamadı." },
+        { status: 500 }
+      );
+    }
   } finally {
     try {
       fs.unlinkSync(tempPath);

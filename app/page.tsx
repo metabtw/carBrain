@@ -11,6 +11,7 @@ import { AiAssistant } from "@/components/ai-assistant";
 import { BottomBar } from "@/components/bottom-bar";
 import { Ecu3DVisualizer } from "@/components/ecu-3d-visualizer";
 import { AiMapAnalyzer } from "@/components/ai-map-analyzer";
+import { ReadOnlyPanel } from "@/components/read-only-panel";
 import {
   SAMPLE_VEHICLE,
   DEFAULT_PARAMS,
@@ -27,9 +28,16 @@ export default function DashboardPage() {
   const [activeMapKey, setActiveMapKey] = useState<string>("boost");
   const [mapData, setMapData] = useState<any>(null);
   const [loadingMap, setLoadingMap] = useState<boolean>(false);
+  // Tanınan ama harita tanımı olmayan ECU'lar salt okunur açılır.
+  const [readOnly, setReadOnly] = useState<boolean>(false);
+  const [identity, setIdentity] = useState<any>(null);
+  // Oturum sorgusu bitmeden harita çekmeyelim; salt okunur dosyada gereksiz 400
+  // isteği üretmemek için.
+  const [sessionChecked, setSessionChecked] = useState<boolean>(false);
 
   // Fetch matrix from backend Python parser
   useEffect(() => {
+    if (readOnly || !sessionChecked) return;
     async function loadMap() {
       setLoadingMap(true);
       try {
@@ -45,7 +53,7 @@ export default function DashboardPage() {
       }
     }
     loadMap();
-  }, [activeMapKey]);
+  }, [activeMapKey, readOnly, sessionChecked]);
 
   // Hazır profil sayfasından gelen değerleri uygula
   // (/?turbo=12&injection=5&throttle=12&torque=6)
@@ -94,9 +102,56 @@ export default function DashboardPage() {
     );
   };
 
-  const handleFileLoad = (file: File, newVehicle: VehicleData) => {
+  const handleFileLoad = (
+    file: File,
+    newVehicle: VehicleData,
+    meta?: { readOnly?: boolean; identity?: any }
+  ) => {
     setVehicle(newVehicle);
+    setReadOnly(meta?.readOnly === true);
+    setIdentity(meta?.identity || null);
   };
+
+  // Sayfa yenilendiğinde aktif oturumun salt okunur olup olmadığını öğren.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/ecu/session");
+        if (!res.ok) return;
+        const body = await res.json();
+        if (cancelled || !body?.success) return;
+        if (body.read_only === true) {
+          setReadOnly(true);
+          setIdentity(body.identity || null);
+          if (body.identity?.display_name) {
+            setVehicle((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    ecu: body.identity.display_name,
+                    ecuType: `${body.identity.profile_id} · Salt Okunur İnceleme`,
+                    status: "Dosya tanındı · salt okunur inceleme (yazma kapalı)",
+                    statusVariant: "warning" as const,
+                    checksum:
+                      body.checksum?.overall_status === "NOT_APPLICABLE"
+                        ? "Checksum bu profil için tanımlı değil"
+                        : prev.checksum,
+                  }
+                : prev
+            );
+          }
+        }
+      } catch {
+        // Oturum ucu opsiyonel; başarısız olursa varsayılan akış kullanılır.
+      } finally {
+        if (!cancelled) setSessionChecked(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <DashboardLayout>
@@ -147,7 +202,11 @@ export default function DashboardPage() {
         {/* Main Content: Left Column + Right AI Column */}
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-12 items-stretch">
           {/* Left Section (Drop zone + Vehicle Summary + Parameter Cards) */}
-          <div className="flex flex-col gap-5 lg:col-span-8">
+          <div
+            className={`flex flex-col gap-5 ${
+              readOnly ? "lg:col-span-12" : "lg:col-span-8"
+            }`}
+          >
             {/* Top Sub-row: Drop Zone & Vehicle Summary */}
             <div className="grid grid-cols-1 gap-5 md:grid-cols-12">
               <div className="md:col-span-7">
@@ -161,29 +220,46 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Bottom Sub-row: 3 Interactive Tuning Cards */}
-            <ParameterCards params={params} onChange={handleParamChange} />
+            {readOnly ? (
+              /* Salt okunur: harita tanımı olmayan ECU'lar için inceleme paneli */
+              <ReadOnlyPanel
+                identity={identity}
+                fileName={vehicle?.fileName || "ECU dump"}
+                onMatrixChange={(matrix) =>
+                  setMapData((prev: any) => (prev ? { ...prev, matrix } : prev))
+                }
+              />
+            ) : (
+              <>
+                {/* Bottom Sub-row: 3 Interactive Tuning Cards */}
+                <ParameterCards params={params} onChange={handleParamChange} />
 
-            {/* Tüm parametreler: tork limitörü, avans, ray basıncı, donanım */}
-            <AdvancedParameters
-              params={params}
-              hardware={hardware}
-              onChange={handleParamChange}
-              onToggleHardware={handleToggleHardware}
-            />
+                {/* Tüm parametreler: tork limitörü, avans, ray basıncı, donanım */}
+                <AdvancedParameters
+                  params={params}
+                  hardware={hardware}
+                  onChange={handleParamChange}
+                  onToggleHardware={handleToggleHardware}
+                />
+              </>
+            )}
           </div>
 
-          {/* Right Section: AI Companion ("Oto-Asistan") */}
-          <div className="lg:col-span-4 lg:sticky lg:top-4 lg:self-start">
-            <AiAssistant
-              currentParams={params}
-              onApplyParams={handleApplyParams}
-            />
-          </div>
+          {/* Right Section: AI Companion ("Oto-Asistan").
+              Salt okunur modda asistan öneri uygulayamayacağı için gizlenir. */}
+          {!readOnly && (
+            <div className="lg:col-span-4 lg:sticky lg:top-4 lg:self-start">
+              <AiAssistant
+                currentParams={params}
+                onApplyParams={handleApplyParams}
+              />
+            </div>
+          )}
         </div>
 
-        {/* 3D Visualizer Section */}
-        <div className="space-y-3">
+        {/* 3D Visualizer Section (yalnızca harita tanımı olan EDC15 profilleri) */}
+        {!readOnly && (
+          <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
@@ -249,25 +325,28 @@ export default function DashboardPage() {
             }
           />
         </div>
+        )}
 
         {/* Local AI Pattern Mining & XDF Verifier (Ollama Step 4) */}
-        <AiMapAnalyzer
-          currentAddress={
-            activeMapKey === "boost"
-              ? "0x4D200"
-              : activeMapKey === "driver_wish"
-              ? "0x4C120"
-              : "0x4E150"
-          }
-          onAddressSelect={(addr) => {
-            if (addr === "0x4D200") setActiveMapKey("boost");
-            else if (addr === "0x4C120") setActiveMapKey("driver_wish");
-            else if (addr === "0x4E150") setActiveMapKey("smoke_limiter");
-          }}
-        />
+        {!readOnly && (
+          <AiMapAnalyzer
+            currentAddress={
+              activeMapKey === "boost"
+                ? "0x4D200"
+                : activeMapKey === "driver_wish"
+                ? "0x4C120"
+                : "0x4E150"
+            }
+            onAddressSelect={(addr) => {
+              if (addr === "0x4D200") setActiveMapKey("boost");
+              else if (addr === "0x4C120") setActiveMapKey("driver_wish");
+              else if (addr === "0x4E150") setActiveMapKey("smoke_limiter");
+            }}
+          />
+        )}
 
-        {/* Bottom Status & Action Bar */}
-        <BottomBar params={params} hardware={hardware} />
+        {/* Bottom Status & Action Bar (salt okunur modda dışa aktarma yok) */}
+        {!readOnly && <BottomBar params={params} hardware={hardware} />}
       </div>
     </DashboardLayout>
   );

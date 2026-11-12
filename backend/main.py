@@ -265,7 +265,10 @@ def health() -> dict:
         "status": "online",
         "engine": "Python + FastAPI + NumPy",
         "supported_ecu": session.profile.display_name,
+        "profile_id": session.profile.id,
         "profile_confidence": session.profile.confidence,
+        "tuning_enabled": session.profile.tuning_enabled,
+        "read_only": not session.profile.tuning_enabled,
         "binary_size": len(session.working),
         "checksum_status": verification["overall_status"],
         "safety_engine": "aktif",
@@ -405,9 +408,18 @@ async def upload_binary(file: UploadFile = File(...)) -> dict:
     with SESSION_LOCK:
         SESSION = session
     binary = EcuBinary(session.working, profile)
+    read_only = not profile.tuning_enabled
     return {
         "success": True,
-        "message": "Dosya doğrulandı ve düzenleme oturumuna yüklendi.",
+        "message": (
+            "Dosya tanındı ve salt okunur inceleme oturumuna yüklendi. Bu yazılım "
+            "sürümü için doğrulanmış harita tanımı olmadığından hiçbir bayt "
+            "değiştirilemez."
+            if read_only
+            else "Dosya doğrulandı ve düzenleme oturumuna yüklendi."
+        ),
+        "read_only": read_only,
+        "tuning_enabled": profile.tuning_enabled,
         "identity": binary.identity().as_dict(),
         "checksum": verification,
         "warning": (
@@ -429,8 +441,21 @@ def validate_tune(payload: TuneInput) -> dict:
     return result.as_dict()
 
 
+def _require_writable(session: "SessionState") -> None:
+    """Refuse every write path for identification-only (read-only) profiles."""
+    if not session.profile.tuning_enabled:
+        raise ModificationError(
+            f"{session.profile.display_name} profili salt okunurdur. Bu yazılım "
+            "sürümü için doğrulanmış harita tanımı (XDF/DAMOS) bulunmadığından "
+            "hiçbir bayt değiştirilmedi ve checksum yazılmadı. Tuning yapmak "
+            "için bu ECU sürümüne ait doğrulanmış bir tanım dosyası eklenmelidir.",
+            code="READ_ONLY_PROFILE",
+        )
+
+
 def _perform_tune(request: TuningRequest) -> dict:
     session = get_session()
+    _require_writable(session)
     with session.lock:
         guardrail = GuardrailEngine().enforce(request)
         patched, reports = apply_tuning(
@@ -528,6 +553,7 @@ def _export_bytes(
     rail_pressure_bar: Optional[float] = None,
 ) -> tuple[bytes, dict]:
     session = get_session()
+    _require_writable(session)
     request = TuningRequest(
         turbo_pct=turbo,
         injection_pct=injection,

@@ -64,7 +64,12 @@ export async function GET(request: NextRequest) {
     const stdout = error?.stdout?.toString?.() || "";
     try {
       const parsed = JSON.parse(stdout);
-      const status = parsed?.safety ? 422 : 400;
+      const status =
+        parsed?.error === "READ_ONLY_PROFILE"
+          ? 409
+          : parsed?.safety
+          ? 422
+          : 400;
       return NextResponse.json(parsed, { status });
     } catch {
       return NextResponse.json(

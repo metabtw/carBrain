@@ -54,6 +54,8 @@ class EcuIdentity:
     identifier_text: str
     identifier_offset: str
     confidence: str
+    software_version: str = ""
+    tuning_enabled: bool = True
 
     def as_dict(self) -> dict:
         return {
@@ -65,6 +67,9 @@ class EcuIdentity:
             "identifier_text": self.identifier_text,
             "identifier_offset": self.identifier_offset,
             "confidence": self.confidence,
+            "software_version": self.software_version,
+            "tuning_enabled": self.tuning_enabled,
+            "read_only": not self.tuning_enabled,
         }
 
 
@@ -135,9 +140,11 @@ class EcuBinary:
     def identity(self) -> EcuIdentity:
         profile = self.profile
         text = ""
+        software = ""
         ident_offset = 0
         if profile is not None:
             text = profile.identifier_text(self.data)
+            software = profile.software_text(self.data)
             ident_offset = profile.identifier_offset
         return EcuIdentity(
             profile_id=profile.id if profile else "unknown",
@@ -147,6 +154,8 @@ class EcuBinary:
             identifier_text=text,
             identifier_offset=f"0x{ident_offset:X}",
             confidence=profile.confidence if profile else "unknown",
+            software_version=software,
+            tuning_enabled=profile.tuning_enabled if profile else False,
         )
 
     # ----------------------------------------------------------------- matrix
@@ -349,16 +358,39 @@ def main() -> None:
     args = parser.parse_args()
 
     ecu = EcuBinaryParser(args.file)
-    if args.info:
-        result = ecu.detect().as_dict()
-        result["identity"] = ecu._binary(strict=True).identity().as_dict()
-    elif args.map:
-        result = ecu.get_known_map(args.map)
-    else:
-        offset = int(args.address, 16) if args.address.startswith("0x") else int(args.address)
-        result = ecu.get_matrix(
-            offset=offset, rows=args.rows, cols=args.cols, factor=args.factor
+    try:
+        if args.info:
+            result = ecu.detect().as_dict()
+            result["identity"] = ecu._binary(strict=True).identity().as_dict()
+        elif args.map:
+            result = ecu.get_known_map(args.map)
+        else:
+            offset = (
+                int(args.address, 16) if args.address.startswith("0x") else int(args.address)
+            )
+            result = ecu.get_matrix(
+                offset=offset, rows=args.rows, cols=args.cols, factor=args.factor
+            )
+    except KeyError as exc:
+        # Profilde harita yok (ör. salt okunur EDC16 profili). Traceback yerine
+        # makine tarafından okunabilir JSON döndür.
+        print(
+            json.dumps(
+                {
+                    "error": "MAP_NOT_DEFINED",
+                    "detail": str(exc).strip("'\""),
+                },
+                ensure_ascii=False,
+            )
         )
+        sys.exit(2)
+    except UnsupportedEcuError as exc:
+        print(
+            json.dumps(
+                {"error": exc.reason, "detail": str(exc)}, ensure_ascii=False
+            )
+        )
+        sys.exit(4)
     print(json.dumps(result, indent=2, ensure_ascii=False))
 
 

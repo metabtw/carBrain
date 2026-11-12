@@ -162,6 +162,14 @@ class EcuProfile:
     source: str = "data/edc15_19tdi.xdf"
     confidence: str = "demo"
     notes: str = ""
+    # False => the binary can be loaded, identified and inspected, but no map
+    # bytes may be modified and no checksum may be written.  Used for ECUs we
+    # can identify but have no verified map pack (XDF/DAMOS) for.
+    tuning_enabled: bool = True
+    # Optional secondary identification block (e.g. the Bosch software number
+    # that is stored separately from the long identification string).
+    software_offset: Optional[int] = None
+    software_length: int = 16
 
     def map(self, key: str) -> MapDefinition:
         normalized = key.lower().replace("-", "_").replace(" ", "_")
@@ -183,6 +191,13 @@ class EcuProfile:
 
     def identifier_text(self, data: bytes) -> str:
         raw = data[self.identifier_offset:self.identifier_offset + self.identifier_length]
+        return raw.split(b"\x00", 1)[0].decode("ascii", errors="ignore").strip()
+
+    def software_text(self, data: bytes) -> str:
+        """Bosch software number stored outside the long identification block."""
+        if self.software_offset is None:
+            return ""
+        raw = data[self.software_offset:self.software_offset + self.software_length]
         return raw.split(b"\x00", 1)[0].decode("ascii", errors="ignore").strip()
 
     def matches(self, data: bytes) -> Tuple[bool, str]:
@@ -213,11 +228,16 @@ class EcuProfile:
             "endian": self.endian,
             "identifier_offset": f"0x{self.identifier_offset:X}",
             "identifier_length": self.identifier_length,
+            "software_offset": (
+                f"0x{self.software_offset:X}" if self.software_offset is not None else None
+            ),
             "base_hp": self.base_hp,
             "base_torque_nm": self.base_torque_nm,
             "source": self.source,
             "confidence": self.confidence,
             "notes": self.notes,
+            "tuning_enabled": self.tuning_enabled,
+            "read_only": not self.tuning_enabled,
             "maps": {key: definition.as_dict() for key, definition in self.maps.items()},
             "checksum_regions": [region.as_dict() for region in self.checksum_regions],
         }
@@ -347,7 +367,47 @@ EDC15_DEMO_PROFILE = EcuProfile(
     ),
 )
 
-PROFILES: Tuple[EcuProfile, ...] = (EDC15_DEMO_PROFILE,)
+# ---------------------------------------------------------------------------
+# Bosch EDC16C39 (Hyundai / Kia 1.6 CRDi) -- inspection-only profile
+# ---------------------------------------------------------------------------
+# Why this profile exists
+# -----------------------
+# Real customer dumps (e.g. Hyundai i30 1.6 CRDi, 2 MB EDC16C39) must be
+# *loadable* so the user can read the ECU identity, the software version and a
+# hex preview.  They must NOT be writable: we have no verified XDF/DAMOS map
+# pack for this software version, and inventing offsets would write random
+# calibration bytes and can brick the ECU.
+#
+# Therefore: empty ``maps``, no checksum regions (= no sealing), and
+# ``tuning_enabled=False``.  Every write path refuses the session.
+EDC16_INSPECTION_PROFILE = EcuProfile(
+    id="bosch-edc16c39-hyundai-inspection",
+    display_name="Bosch EDC16C39 (Hyundai/Kia CRDi) - Salt Okunur İnceleme",
+    vendor="Bosch",
+    ecu_family="EDC16C39",
+    flash_size=2 * 1024 * 1024,  # 2 MB MPC5xx flash read image
+    endian="big",                # EDC16 uses big-endian (HiLo) calibration data
+    identifier_offset=0x1C0607,
+    identifier_length=96,
+    identifier_keywords=("EDC16",),
+    software_offset=0x1C0010,
+    software_length=16,
+    maps={},
+    checksum_regions=(),
+    base_hp=115,
+    base_torque_nm=255,
+    source="otomatik kimlik tespiti (XDF/DAMOS yok)",
+    confidence="identified",
+    tuning_enabled=False,
+    notes=(
+        "Bu profil yalnızca kimlik tespiti ve salt-okunur inceleme içindir. "
+        "Harita adresleri doğrulanmış bir XDF/DAMOS tanımından gelmediği için "
+        "hiçbir bayt yazılmaz, checksum imzalanmaz ve dosya dışa aktarılmaz. "
+        "Tuning açmak için bu yazılım sürümüne ait XDF/DAMOS dosyası eklenmelidir."
+    ),
+)
+
+PROFILES: Tuple[EcuProfile, ...] = (EDC15_DEMO_PROFILE, EDC16_INSPECTION_PROFILE)
 
 
 def profile_by_id(profile_id: str) -> EcuProfile:

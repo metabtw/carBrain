@@ -168,6 +168,29 @@ okumak, aynı sürüme ait doğrulanmış XDF/Damos ile yeni bir `EcuProfile` ek
 ve ancak checksum'lı okuma-yazma testinden sonra `confidence="verified"`
 işaretlemek.
 
+### 4.1 Salt okunur (inspection-only) profiller
+
+Elimizde harita tanımı olmayan ama **tanınabilen** gerçek dump'lar da yüklenebilir.
+Bu durumda profil `tuning_enabled=False` ile kaydedilir:
+
+| Profil | ECU | Boyut | Kimlik alanı | Durum |
+| --- | --- | --- | --- | --- |
+| `bosch-edc16c39-hyundai-inspection` | Bosch EDC16C39 (Hyundai/Kia CRDi) | 2 MB | `0x1C0607` (`EDC16C39`) | Salt okunur |
+
+Salt okunur profilde:
+
+- `maps = {}` — hiçbir harita adresi tanımlı değildir, tahmin edilmez.
+- `checksum_regions = ()` — checksum doğrulaması `NOT_APPLICABLE` döner.
+- `ChecksumEngine.seal()`, `/api/tune`, `/api/patch`, `/api/download`,
+  `cli_tune.py` ve `/api/ecu/export` → `READ_ONLY_PROFILE` (HTTP 409) ile reddedilir.
+- Arayüz, slider'lar / dışa aktarma / Oto-Asistan yerine **Salt Okunur İnceleme**
+  panelini gösterir: ECU kimliği, yazılım sürümü (örn. `1037391494P373C0`),
+  SHA-256 ve serbest adres okuyucu (tablo + 3B, yalnızca okuma).
+
+Böylece kullanıcı dosyasını inceleyebilir, ancak yanlış offset ile ECU'ya
+yazılması imkânsızdır. Tuning'i açmak için o yazılım sürümüne ait XDF/DAMOS ile
+yeni bir yazılabilir profil eklenmelidir.
+
 ## 5. Matematiksel değiştirici (modifier)
 
 `backend/modifier.py` üç kullanıcı slider'ını şu haritalara bağlar:
@@ -492,7 +515,7 @@ npm start
 python -m pytest
 ```
 
-Beklenen: **74 test geçer**. Kapsam:
+Beklenen: **90 test geçer**. Kapsam:
 
 - `test_parser.py`: boyut/kimlik doğrulama, sınır kontrolü, little-endian,
   16x16 şekil, eksen ve kalibrasyon.
@@ -507,6 +530,9 @@ Beklenen: **74 test geçer**. Kapsam:
 - `test_datalogger.py`: temiz log, spike, lag, düşük ray basıncı, pozisyonel
   fallback, boş dosya.
 - `test_ai.py`: Ollama durum kodları, model çözümleme/fallback davranışı.
+- `test_read_only_profile.py`: EDC16C39 kimlik tespiti, yazılım sürümü okuma,
+  boş harita tablosu, `NOT_APPLICABLE` checksum, imzalama reddi ve serbest adres
+  okumasının salt okunur kalması.
 - `test_api.py` ayrıca `/health`, `/healthz` takma adlarını, `/api/ai/status`
   ucunu, tork limitörü/avans/ray basıncı parametrelerini ve genişletilmiş
   donanım zarfını doğrular.

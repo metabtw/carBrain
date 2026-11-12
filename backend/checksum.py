@@ -99,10 +99,12 @@ class ChecksumEngine:
     def __init__(self, data: bytes | bytearray, profile: EcuProfile):
         self.data = bytearray(data)
         self.profile = profile
-        if not profile.checksum_regions:
+
+    def _require_regions(self) -> None:
+        if not self.profile.checksum_regions:
             raise ChecksumError(
-                f"{profile.display_name} için checksum bölgesi tanımlı değil. "
-                "İmzalanmamış dosya dışa aktarılamaz.",
+                f"{self.profile.display_name} için checksum bölgesi tanımlı değil. "
+                "Bu profil salt okunur; dosya imzalanamaz ve dışa aktarılamaz.",
                 code="CHECKSUM_REGION_MISSING",
             )
 
@@ -155,6 +157,23 @@ class ChecksumEngine:
         )
 
     def verify(self) -> Dict[str, Any]:
+        if not self.profile.checksum_regions:
+            # Read-only profile: we cannot verify or seal anything.  Report this
+            # explicitly instead of pretending the file is valid.
+            return {
+                "overall_status": "NOT_APPLICABLE",
+                "is_valid": False,
+                "can_export": False,
+                "profile_id": self.profile.id,
+                "confidence": self.profile.confidence,
+                "algorithm": None,
+                "blocks": [],
+                "detail": (
+                    "Bu ECU yazılım sürümü için checksum algoritması ve bölgeleri "
+                    "tanımlı değil. Dosya salt okunur olarak incelenebilir; "
+                    "imzalanamaz ve dışa aktarılamaz."
+                ),
+            }
         regions = [self.verify_region(region) for region in self.profile.checksum_regions]
         statuses = {result.status for result in regions}
         if "INVALID" in statuses:
@@ -176,6 +195,7 @@ class ChecksumEngine:
     # -------------------------------------------------------------------- seal
     def seal(self) -> bytearray:
         """Recalculate and write every region signature, then verify."""
+        self._require_regions()
         sealed = bytearray(self.data)
         for region in self.profile.checksum_regions:
             algorithm = ALGORITHMS.get(region.algorithm)

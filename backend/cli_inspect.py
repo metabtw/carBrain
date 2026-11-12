@@ -42,10 +42,17 @@ def main() -> None:
         binary = EcuBinary(data, profile)
         result = {
             "success": True,
+            "read_only": not profile.tuning_enabled,
+            "tuning_enabled": profile.tuning_enabled,
             "identity": binary.identity().as_dict(),
             "checksum": ChecksumEngine(data, profile).verify(),
             "maps": [definition.as_dict() for definition in profile.maps.values()],
-            "message": "Dosya doğrulandı. Kayıtlı ECU profiliyle eşleşiyor.",
+            "message": (
+                "Dosya tanındı. Bu yazılım sürümü için doğrulanmış harita tanımı "
+                "olmadığından yalnızca salt okunur inceleme yapılabilir."
+                if not profile.tuning_enabled
+                else "Dosya doğrulandı. Kayıtlı ECU profiliyle eşleşiyor."
+            ),
         }
     except UnsupportedEcuError as exc:
         print(
