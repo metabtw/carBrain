@@ -11,6 +11,7 @@ import {
   Table as TableIcon,
   Layers,
   RefreshCw,
+  FlaskConical,
 } from "lucide-react";
 import { Ecu3DVisualizer } from "@/components/ecu-3d-visualizer";
 
@@ -40,6 +41,9 @@ interface ReadOnlyPanelProps {
   identity: ReadOnlyIdentity | null;
   fileName: string;
   onMatrixChange?: (matrix: number[][]) => void;
+  /** Deneysel (ham) düzenleme moduna geçiş; tanınan dosyalarda gösterilir. */
+  onStartExperimental?: () => void;
+  experimentalAvailable?: boolean;
 }
 
 const DEFAULT_ADDRESS = "0x1C0000";
@@ -48,6 +52,8 @@ export function ReadOnlyPanel({
   identity,
   fileName,
   onMatrixChange,
+  onStartExperimental,
+  experimentalAvailable = false,
 }: ReadOnlyPanelProps) {
   const [address, setAddress] = useState(DEFAULT_ADDRESS);
   const [rows, setRows] = useState(16);
@@ -127,12 +133,26 @@ export function ReadOnlyPanel({
               <strong className="font-semibold">{fileName}</strong> dosyası tanındı,
               ancak bu yazılım sürümüne ait doğrulanmış bir harita tanımı
               (XDF/DAMOS) yok. Adresleri tahmin etmek yanlış kalibrasyon baytlarını
-              değiştirip ECU&apos;yu kilitleyebileceği için{" "}
-              <strong className="font-semibold">
-                hiçbir bayt yazılmaz, checksum imzalanmaz ve dosya dışa aktarılmaz
-              </strong>
-              . Aşağıdan dosyayı serbest adres okuyarak inceleyebilirsiniz.
+              değiştirip ECU&apos;yu kilitleyebileceği için harita bazlı tuning
+              kapalıdır. Aşağıdan dosyayı serbest adres okuyarak inceleyebilirsiniz.
             </p>
+            {experimentalAvailable && onStartExperimental && (
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={onStartExperimental}
+                  className="flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-amber-700"
+                >
+                  <FlaskConical className="h-4 w-4" />
+                  Deneysel düzenleme moduna geç
+                </button>
+                <p className="mt-1.5 text-[10px] leading-relaxed text-amber-800/80 dark:text-amber-400/80">
+                  Riskleri onayladıktan sonra ham bayt düzenleyebilir, diff üretip
+                  <strong className="font-semibold"> imzasız</strong> dışa
+                  aktarabilirsiniz.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>

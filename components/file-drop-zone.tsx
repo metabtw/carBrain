@@ -10,7 +10,11 @@ interface FileDropZoneProps {
   onFileLoad: (
     file: File,
     vehicle: VehicleData,
-    meta?: { readOnly?: boolean; identity?: unknown }
+    meta?: {
+      readOnly?: boolean;
+      identity?: unknown;
+      mode?: "verified" | "experimental_available" | "readonly";
+    }
   ) => void;
   currentVehicle: VehicleData | null;
 }
@@ -104,7 +108,7 @@ export function FileDropZone({ onFileLoad, currentVehicle }: FileDropZoneProps) 
           fileSize: `${Math.max(1, Math.round(file.size / 1024))} KB`,
           loadedAt: "Şimdi",
         },
-        { readOnly, identity: data?.identity }
+        { readOnly, identity: data?.identity, mode: data?.mode }
       );
     } catch (err: any) {
       setError(

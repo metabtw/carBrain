@@ -222,20 +222,23 @@ export function AiMapAnalyzer({
 
       {/* Adres ve model seçimi */}
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <select
+        <input
+          list="ai-map-address-presets"
           value={address}
           onChange={(e) => {
             setAddress(e.target.value);
             onAddressSelect?.(e.target.value);
           }}
-          className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-        >
+          placeholder="0x1C0000"
+          className="w-40 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 font-mono text-xs font-medium text-slate-700 outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+        />
+        <datalist id="ai-map-address-presets">
           {PRESET_ADDRESSES.map((preset) => (
             <option key={preset.address} value={preset.address}>
               {preset.label}
             </option>
           ))}
-        </select>
+        </datalist>
 
         <select
           value={model}

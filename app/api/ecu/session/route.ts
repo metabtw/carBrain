@@ -6,6 +6,21 @@ import fs from "fs";
 
 const execAsync = promisify(exec);
 
+/**
+ * Oturum modu:
+ * - ``verified``               : doğrulanmış harita + checksum var (mevcut akış)
+ * - ``experimental_available`` : dosya tanındı ama harita tanımı yok; onayla
+ *                                deneysel ham düzenleme yapılabilir
+ * - ``readonly``               : tanınmayan/bozuk dosya; yalnızca inceleme
+ */
+function sessionMode(body: any): "verified" | "experimental_available" | "readonly" {
+  if (body?.success === true && body?.tuning_enabled === true) return "verified";
+  if (body?.success === true && body?.read_only === true) {
+    return "experimental_available";
+  }
+  return "readonly";
+}
+
 function activeBinPath(): string {
   const session = path.join(process.cwd(), "data", ".session_upload.bin");
   const stock = path.join(process.cwd(), "data", "edc15_19tdi_stock.bin");
@@ -47,11 +62,16 @@ export async function GET() {
         { status: 500 }
       );
     }
-    return NextResponse.json(parsed);
+    return NextResponse.json({ ...parsed, mode: sessionMode(parsed) });
   } catch (error: any) {
     const stdout = error?.stdout?.toString?.() || "";
     try {
-      return NextResponse.json(JSON.parse(stdout), { status: 400 });
+      const parsed = JSON.parse(stdout);
+      // Tanınmayan/reddedilen dosya: yalnızca inceleme yapılabilir.
+      return NextResponse.json(
+        { ...parsed, mode: sessionMode(parsed) },
+        { status: 400 }
+      );
     } catch {
       return NextResponse.json(
         {

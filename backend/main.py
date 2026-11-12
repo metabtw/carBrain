@@ -18,6 +18,7 @@ bridges in ``app/api``.  Both paths go through the same modules:
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import os
 import sys
@@ -49,6 +50,8 @@ try:  # package imports when run as `backend.main`
         UnsupportedEcuError,
         detect_profile,
     )
+    from .raw_edit import RawEditError, export_experimental, parse_patches
+    from .raw_service import layout_report, preview_patches, read_hex
 except ImportError:  # pragma: no cover - direct script execution
     from checksum import ChecksumEngine, ChecksumError
     from datalogger import analyze_csv
@@ -61,6 +64,8 @@ except ImportError:  # pragma: no cover - direct script execution
         UnsupportedEcuError,
         detect_profile,
     )
+    from raw_edit import RawEditError, export_experimental, parse_patches
+    from raw_service import layout_report, preview_patches, read_hex
 
 DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 STOCK_BIN_PATH = os.path.join(DATA_DIR, "edc15_19tdi_stock.bin")
@@ -254,6 +259,20 @@ async def modification_handler(request: Request, exc: ModificationError) -> JSON
     )
 
 
+@app.exception_handler(RawEditError)
+async def raw_edit_handler(request: Request, exc: RawEditError) -> JSONResponse:
+    """Deneysel mod hataları: sınır, boyut ve onay ihlalleri 400 döner."""
+    return JSONResponse(
+        status_code=400,
+        content={
+            "success": False,
+            "error": exc.code,
+            "detail": str(exc),
+            "checksum_status": "UNVERIFIED",
+        },
+    )
+
+
 # ---------------------------------------------------------------------------
 # Health / metadata
 # ---------------------------------------------------------------------------
@@ -269,6 +288,11 @@ def health() -> dict:
         "profile_confidence": session.profile.confidence,
         "tuning_enabled": session.profile.tuning_enabled,
         "read_only": not session.profile.tuning_enabled,
+        "mode": (
+            "verified"
+            if session.profile.tuning_enabled
+            else "experimental_available"
+        ),
         "binary_size": len(session.working),
         "checksum_status": verification["overall_status"],
         "safety_engine": "aktif",
@@ -420,6 +444,7 @@ async def upload_binary(file: UploadFile = File(...)) -> dict:
         ),
         "read_only": read_only,
         "tuning_enabled": profile.tuning_enabled,
+        "mode": "verified" if profile.tuning_enabled else "experimental_available",
         "identity": binary.identity().as_dict(),
         "checksum": verification,
         "warning": (
@@ -600,6 +625,97 @@ def download_bin(
             "X-Profile-Id": get_session().profile.id,
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Experimental (raw) edit mode
+# ---------------------------------------------------------------------------
+# Bu uçlar yalnızca deneysel mod içindir: harita tanımı olmayan dosyalarda
+# kullanıcı BİLEREK bayt düzenler.  Checksum her zaman UNVERIFIED kalır; hiçbir
+# doğrulama "VALID" olarak raporlanmaz ve doğrulanmış tune hattı etkilenmez.
+
+
+class RawPreviewInput(BaseModel):
+    patches: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class RawExportInput(RawPreviewInput):
+    ack_unverified: bool = False
+
+
+RAW_EXPORT_DIR = os.path.join(DATA_DIR, "raw_exports")
+
+
+@app.get("/api/raw/layout")
+def raw_layout() -> dict:
+    """DOSYA düzeni: 64 KB bloklar, boş oran ve kısmi dump yorumu."""
+    session = get_session()
+    return {**layout_report(session.working), "mode": "experimental"}
+
+
+@app.get("/api/raw/hex")
+def raw_hex(
+    offset: str = Query("0x0"),
+    length: int = Query(256),
+) -> dict:
+    """Sınır kontrollü hex okuma (en fazla 4 KB)."""
+    session = get_session()
+    try:
+        start = int(offset, 16) if offset.lower().startswith("0x") else int(offset)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Geçersiz adres: {offset}")
+    result = read_hex(session.working, start, length)
+    return {**result, "mode": "experimental"}
+
+
+@app.post("/api/raw/preview")
+def raw_preview(payload: RawPreviewInput) -> dict:
+    """Yamaları bellekte uygular; diff ve uyarıları döner, dosyaya yazmaz."""
+    session = get_session()
+    return preview_patches(session.working, payload.patches)
+
+
+@app.post("/api/raw/export")
+def raw_export(payload: RawExportInput) -> dict:
+    """
+    Onaylı deneysel dışa aktarma.
+
+    ``ack_unverified`` false ise 400 döner.  Çıktı dosyası, orijinal yedek ve
+    diff raporu ``data/raw_exports/<zaman damgası>/`` altında kalıcı tutulur.
+    """
+    if not payload.ack_unverified:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Deneysel dışa aktarma için ack_unverified=true zorunlu. "
+                "Checksum doğrulanmamış dosya üretileceğini onaylamalısınız."
+            ),
+        )
+    session = get_session()
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    out_dir = os.path.join(RAW_EXPORT_DIR, stamp)
+    os.makedirs(out_dir, exist_ok=True)
+    stem = os.path.splitext(session.original_name)[0] or "ecm"
+    input_path = os.path.join(out_dir, f"{stem}.input.bin")
+    output_path = os.path.join(out_dir, f"{stem}.experimental.bin")
+    with open(input_path, "wb") as handle:
+        handle.write(session.working)
+
+    report = export_experimental(input_path, output_path, parse_patches(payload.patches))
+    with open(output_path, "rb") as handle:
+        produced = handle.read()
+
+    return {
+        **report,
+        "mode": "experimental",
+        "checksum_status": "UNVERIFIED",
+        "profile_id": session.profile.id,
+        "filename": os.path.basename(output_path),
+        "backup_filename": os.path.basename(report["backup"]),
+        "report_filename": os.path.basename(report["report"]),
+        "export_dir": out_dir,
+        "binary_base64": base64.b64encode(produced).decode("ascii"),
+    }
 
 
 # ---------------------------------------------------------------------------

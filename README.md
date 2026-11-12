@@ -187,6 +187,56 @@ Salt okunur profilde:
   panelini gösterir: ECU kimliği, yazılım sürümü (örn. `1037391494P373C0`),
   SHA-256 ve serbest adres okuyucu (tablo + 3B, yalnızca okuma).
 
+### 4.2 Oturum modları
+
+Tek bir oturum üç moddan birinde olur (`/api/ecu/session` → `mode`):
+
+| Mod | Ne zaman | Neler yapılabilir |
+| --- | --- | --- |
+| `verified` | Profilde doğrulanmış harita + checksum var | Slider'lar, guardrail, seal + indirme |
+| `experimental_available` | Dosya tanındı, harita tanımı yok | İnceleme + onayla deneysel moda geçiş |
+| `readonly` | Tanınmayan/bozuk dosya | Yalnızca inceleme |
+
+### 4.3 Deneysel (ham) düzenleme modu — Faz 1
+
+Harita tanımı olmayan dosyalarda kullanıcı **bilerek ve onaylayarak** bayt
+düzenleyebilir. Doğrulanmış tune hattına hiç dokunulmaz.
+
+**Modül:** `backend/raw_edit.py` (temel işlemler) + `backend/raw_service.py`
+(layout/hex/önizleme) + `backend/cli_raw.py` (onaylı dışa aktarma) +
+`backend/cli_raw_ops.py` (salt okunur sorgular).
+
+Değişmez sözleşme:
+
+- Checksum durumu **her zaman** `UNVERIFIED`. Hiçbir yerde sahte `VALID` üretilmez.
+- Dışa aktarma `ack_unverified=true` olmadan **400** döner.
+- Orijinal dosya `<çıktı>.original.bin`, rapor `<çıktı>.diff.json` olarak yazılır.
+- Sınır dışı yazma (`OUT_OF_BOUNDS`) ve 64 KB üzeri toplam yama
+  (`PATCH_TOO_LARGE`) reddedilir.
+- ECU'ya flash yazma özelliği yoktur; kapsam yalnızca dosya düzenlemedir.
+
+| Uç | Açıklama |
+| --- | --- |
+| `GET /api/raw/layout` | 64 KB blok doluluk haritası, `blank_ratio_pct`, `looks_partial` |
+| `GET /api/raw/hex?offset=&length=` | Sınır kontrollü hex okuma (en fazla 4 KB) |
+| `POST /api/raw/preview` | `{patches:[{offset,hex}]}` → diff + uyarılar (dosyaya yazmaz) |
+| `POST /api/raw/export` | `{patches, ack_unverified:true}` → bin + yedek + diff raporu |
+
+CLI karşılıkları:
+
+```powershell
+python backend/cli_raw_ops.py --file in.bin --mode layout
+python backend/cli_raw_ops.py --file in.bin --mode hex --offset 0x1C2000 --length 64
+python backend/cli_raw.py --input in.bin --patches p.json --output out.bin --ack-unverified
+```
+
+Arayüzde: salt okunur kartındaki **"Deneysel düzenleme moduna geç"** düğmesi risk
+onayı açar (checksum doğrulanmayacak, ECU'ya yazılmamalı, kısmi dump uyarısı).
+Onay sonrası `HexEditorPanel` (16 bayt/satır hex + ASCII, dolu blok vurgusu),
+`DiffPanel` (offset, önce/sonra, toplam değişen bayt) ve onay kutulu dışa
+aktarma görünür. Bu modda harita slider'ları, 3B görselleştirici ve Oto-Asistan
+gizlenir; **Yapay Zeka Harita Madencisi** (salt okunur analiz) açık kalır.
+
 Böylece kullanıcı dosyasını inceleyebilir, ancak yanlış offset ile ECU'ya
 yazılması imkânsızdır. Tuning'i açmak için o yazılım sürümüne ait XDF/DAMOS ile
 yeni bir yazılabilir profil eklenmelidir.

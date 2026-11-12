@@ -21,6 +21,9 @@ backend/.venv/
 # Yüklenen geçici ECU dosyaları
 data/.session_upload.bin
 data/*.tmp
+
+# Deneysel mod dışa aktarımları (yedek + diff raporu + üretilen bin)
+data/raw_exports/
 *.log
 
 # İşletim sistemi

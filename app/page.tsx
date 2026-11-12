@@ -12,6 +12,8 @@ import { BottomBar } from "@/components/bottom-bar";
 import { Ecu3DVisualizer } from "@/components/ecu-3d-visualizer";
 import { AiMapAnalyzer } from "@/components/ai-map-analyzer";
 import { ReadOnlyPanel } from "@/components/read-only-panel";
+import { ExperimentalPanel } from "@/components/experimental-panel";
+import { ExperimentalConsentDialog } from "@/components/experimental-consent-dialog";
 import {
   SAMPLE_VEHICLE,
   DEFAULT_PARAMS,
@@ -21,6 +23,8 @@ import {
   type HardwareUpgradeKey,
 } from "@/lib/types";
 
+type SessionMode = "verified" | "experimental_available" | "experimental" | "readonly";
+
 export default function DashboardPage() {
   const [vehicle, setVehicle] = useState<VehicleData | null>(SAMPLE_VEHICLE);
   const [params, setParams] = useState<TuningParams>(DEFAULT_PARAMS);
@@ -28,12 +32,14 @@ export default function DashboardPage() {
   const [activeMapKey, setActiveMapKey] = useState<string>("boost");
   const [mapData, setMapData] = useState<any>(null);
   const [loadingMap, setLoadingMap] = useState<boolean>(false);
-  // Tanınan ama harita tanımı olmayan ECU'lar salt okunur açılır.
-  const [readOnly, setReadOnly] = useState<boolean>(false);
+  // Oturum modu: verified | experimental_available | experimental | readonly
+  const [mode, setMode] = useState<SessionMode>("verified");
+  const [consentOpen, setConsentOpen] = useState<boolean>(false);
   const [identity, setIdentity] = useState<any>(null);
   // Oturum sorgusu bitmeden harita çekmeyelim; salt okunur dosyada gereksiz 400
   // isteği üretmemek için.
   const [sessionChecked, setSessionChecked] = useState<boolean>(false);
+  const readOnly = mode !== "verified";
 
   // Fetch matrix from backend Python parser
   useEffect(() => {
@@ -105,42 +111,55 @@ export default function DashboardPage() {
   const handleFileLoad = (
     file: File,
     newVehicle: VehicleData,
-    meta?: { readOnly?: boolean; identity?: any }
+    meta?: { readOnly?: boolean; identity?: any; mode?: SessionMode }
   ) => {
     setVehicle(newVehicle);
-    setReadOnly(meta?.readOnly === true);
     setIdentity(meta?.identity || null);
+    setConsentOpen(false);
+    const nextMode: SessionMode =
+      meta?.mode ??
+      (meta?.readOnly === true ? "experimental_available" : "verified");
+    setMode(nextMode);
   };
 
-  // Sayfa yenilendiğinde aktif oturumun salt okunur olup olmadığını öğren.
+  // Sayfa yenilendiğinde aktif oturum modunu öğren.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const res = await fetch("/api/ecu/session");
-        if (!res.ok) return;
-        const body = await res.json();
-        if (cancelled || !body?.success) return;
-        if (body.read_only === true) {
-          setReadOnly(true);
+        const body = await res.json().catch(() => null);
+        if (cancelled || !body) return;
+        const sessionMode: SessionMode =
+          body?.mode ??
+          (body?.success && body?.tuning_enabled === true
+            ? "verified"
+            : body?.success && body?.read_only === true
+            ? "experimental_available"
+            : "readonly");
+        setMode(sessionMode);
+        if (sessionMode !== "verified" && body?.identity?.display_name) {
           setIdentity(body.identity || null);
-          if (body.identity?.display_name) {
-            setVehicle((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    ecu: body.identity.display_name,
-                    ecuType: `${body.identity.profile_id} · Salt Okunur İnceleme`,
-                    status: "Dosya tanındı · salt okunur inceleme (yazma kapalı)",
-                    statusVariant: "warning" as const,
-                    checksum:
-                      body.checksum?.overall_status === "NOT_APPLICABLE"
-                        ? "Checksum bu profil için tanımlı değil"
-                        : prev.checksum,
-                  }
-                : prev
-            );
-          }
+          setVehicle((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  ecu: body.identity.display_name,
+                  ecuType: `${body.identity.profile_id} · ${
+                    sessionMode === "readonly" ? "Salt Okunur" : "Deneysel Mod"
+                  }`,
+                  status:
+                    sessionMode === "readonly"
+                      ? "Tanınmayan dosya · yalnızca inceleme"
+                      : "Dosya tanındı · harita tanımı yok (deneysel düzenleme)",
+                  statusVariant: "warning" as const,
+                  checksum:
+                    body.checksum?.overall_status === "NOT_APPLICABLE"
+                      ? "Checksum bu profil için tanımlı değil"
+                      : prev.checksum,
+                }
+              : prev
+          );
         }
       } catch {
         // Oturum ucu opsiyonel; başarısız olursa varsayılan akış kullanılır.
@@ -220,11 +239,19 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {readOnly ? (
-              /* Salt okunur: harita tanımı olmayan ECU'lar için inceleme paneli */
+            {mode === "experimental" ? (
+              /* Deneysel: harita tanımı yok, kullanıcı onayıyla ham düzenleme */
+              <ExperimentalPanel
+                fileName={vehicle?.fileName || "ECU dump"}
+                onExit={() => setMode("experimental_available")}
+              />
+            ) : readOnly ? (
+              /* Salt okunur: kimlik + serbest adres incelemesi */
               <ReadOnlyPanel
                 identity={identity}
                 fileName={vehicle?.fileName || "ECU dump"}
+                experimentalAvailable={mode === "experimental_available"}
+                onStartExperimental={() => setConsentOpen(true)}
                 onMatrixChange={(matrix) =>
                   setMapData((prev: any) => (prev ? { ...prev, matrix } : prev))
                 }
@@ -246,8 +273,8 @@ export default function DashboardPage() {
           </div>
 
           {/* Right Section: AI Companion ("Oto-Asistan").
-              Salt okunur modda asistan öneri uygulayamayacağı için gizlenir. */}
-          {!readOnly && (
+              Yalnızca doğrulanmış profilde öneri uygulanabilir. */}
+          {mode === "verified" && (
             <div className="lg:col-span-4 lg:sticky lg:top-4 lg:self-start">
               <AiAssistant
                 currentParams={params}
@@ -256,6 +283,17 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+
+        {/* Deneysel moda geçiş onayı */}
+        <ExperimentalConsentDialog
+          open={consentOpen}
+          fileName={vehicle?.fileName || "ECU dump"}
+          onCancel={() => setConsentOpen(false)}
+          onConfirm={() => {
+            setConsentOpen(false);
+            setMode("experimental");
+          }}
+        />
 
         {/* 3D Visualizer Section (yalnızca harita tanımı olan EDC15 profilleri) */}
         {!readOnly && (
@@ -328,16 +366,21 @@ export default function DashboardPage() {
         )}
 
         {/* Local AI Pattern Mining & XDF Verifier (Ollama Step 4) */}
-        {!readOnly && (
+        {(mode === "verified" || mode === "experimental") && (
           <AiMapAnalyzer
             currentAddress={
-              activeMapKey === "boost"
+              mode === "experimental"
+                ? identity?.profile_id?.includes("edc16")
+                  ? "0x1C0000"
+                  : "0x0"
+                : activeMapKey === "boost"
                 ? "0x4D200"
                 : activeMapKey === "driver_wish"
                 ? "0x4C120"
                 : "0x4E150"
             }
             onAddressSelect={(addr) => {
+              if (mode !== "verified") return;
               if (addr === "0x4D200") setActiveMapKey("boost");
               else if (addr === "0x4C120") setActiveMapKey("driver_wish");
               else if (addr === "0x4E150") setActiveMapKey("smoke_limiter");

@@ -63,7 +63,17 @@ export async function POST(request: NextRequest) {
     fs.mkdirSync(path.dirname(SESSION_BIN()), { recursive: true });
     fs.copyFileSync(tempPath, SESSION_BIN());
     return NextResponse.json(
-      { ...data, fileName: file.name, fileSize: `${Math.round(file.size / 1024)} KB` },
+      {
+        ...data,
+        fileName: file.name,
+        fileSize: `${Math.round(file.size / 1024)} KB`,
+        mode:
+          (data as any)?.tuning_enabled === true
+            ? "verified"
+            : (data as any)?.success === true
+            ? "experimental_available"
+            : "readonly",
+      },
       { status: 200 }
     );
   } catch (error: any) {
