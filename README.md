@@ -475,6 +475,17 @@ npm run build
 npm start
 ```
 
+> `npm start` **her zaman** taze bir `npm run build` çıktısı ister. `npm run dev`
+> ile üretilen `.next` klasörü üretim sunucusuna uygun değildir; ikisini aynı
+> `.next` üzerinde karıştırırsanız şu hatalar görülür:
+>
+> - `Cannot find module '.next\server\app\api\ecu\upload\route.js'`
+> - `Cannot find module '.next\server\pages\_error.js'`
+> - Arayüzde `Unexpected token 'I', "Internal S"... is not valid JSON`
+>
+> Çözüm: sunucuyu durdurun, `.next` klasörünü silin ve `npm run build` sonrasında
+> `npm start` çalıştırın. Geliştirme sırasında ise yalnızca `npm run dev` kullanın.
+
 ## 12. Testler
 
 ```powershell

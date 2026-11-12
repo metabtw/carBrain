@@ -38,10 +38,29 @@ export async function POST(request: NextRequest) {
 
     const scriptPath = path.join(process.cwd(), "backend", "cli_inspect.py");
     const cmd = `python "${scriptPath}" --file "${tempPath}"`;
-    const { stdout } = await execAsync(cmd);
-    const data = JSON.parse(stdout);
+    const { stdout } = await execAsync(cmd, {
+      timeout: 60_000,
+      maxBuffer: 16 * 1024 * 1024,
+      windowsHide: true,
+    });
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(stdout);
+    } catch {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "INSPECTOR_OUTPUT_INVALID",
+          detail:
+            "Python denetleyicisi geçerli JSON döndürmedi. Python bağımlılıklarını (numpy, fastapi) kontrol edin.",
+        },
+        { status: 500 }
+      );
+    }
+    const data = parsed as Record<string, unknown>;
 
     // Persist only a verified binary as the active working session.
+    fs.mkdirSync(path.dirname(SESSION_BIN()), { recursive: true });
     fs.copyFileSync(tempPath, SESSION_BIN());
     return NextResponse.json(
       { ...data, fileName: file.name, fileSize: `${Math.round(file.size / 1024)} KB` },

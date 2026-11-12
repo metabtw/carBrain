@@ -50,7 +50,23 @@ export function FileDropZone({ onFileLoad, currentVehicle }: FileDropZoneProps) 
       const formData = new FormData();
       formData.append("file", file);
       const res = await fetch("/api/ecu/upload", { method: "POST", body: formData });
-      const data = await res.json();
+      // Sunucu JSON döndürmezse (ör. 500 "Internal Server Error" düz metni)
+      // res.json() "Unexpected token" hatası fırlatır; önce metin olarak okuyoruz.
+      const raw = await res.text();
+      let data: any = null;
+      try {
+        data = raw ? JSON.parse(raw) : null;
+      } catch {
+        data = null;
+      }
+      if (!data) {
+        setError(
+          res.status === 500
+            ? "Sunucu tarafında beklenmeyen bir hata oluştu (HTTP 500). Geliştirme sunucusunu yeniden başlatın ve tekrar deneyin."
+            : `Dosya doğrulanamadı (HTTP ${res.status}). Lütfen tekrar deneyin.`
+        );
+        return;
+      }
       if (!res.ok || data?.success === false) {
         setError(
           data?.detail ||
